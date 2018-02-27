@@ -61,16 +61,16 @@ CHARACTER (len=90)   :: coarsevel_filename
 INTEGER              :: ierr
 
 ! open the info file to get information on timestep starting
-100 FORMAT(9X, I3)
+999 FORMAT(12X, I3)
 open(unit=100,file='info.txt',status='old',action=&
      'read', iostat=ierr)
 if ( ierr == 0) then
-    read(100,*) onset 
+    read(100,999) onset 
 else
      write(*,*) 'Beim OEffenen der Datei ist ein Fehler Nr.', &
                  ierr,' aufgetreten'
 end if
-
+WRITE(*,*) "OCH onset", onset
 WRITE(input_filename,"(A24)") "irt_objects_input_00.srv"
 WRITE(input_filename_v(1),"(A23)"),"irt_objects_input_u.srv"
 WRITE(input_filename_v(2),"(A23)"),"irt_objects_input_v.srv"

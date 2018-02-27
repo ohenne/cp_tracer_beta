@@ -18,8 +18,8 @@ set -ex
 # settings
 STAM='test1plus4K' # Project name
 
-cutoff=0.1       # cut off from precipitation
-thrs=1           # not yet used
+cutoff=0.1       # cut off from precipitation, use 3 strings
+thrs=1.0         # not yet used, use 3 strings
 mincellsize=100  #minimum rain cell size, use 3 strings
 tstart=136
 echo ${cutoff} ${mincellsize} ${thrs} ${tstart} > info.txt
