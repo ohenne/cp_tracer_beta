@@ -20,8 +20,9 @@ STAM='test1plus4K' # Project name
 
 cutoff=0.1       # cut off from precipitation
 thrs=1           # not yet used
-mincellsize=100  #minimum rain cell size
-echo ${cutoff} ${mincellsize} ${thrs} > info.txt
+mincellsize=100  #minimum rain cell size, use 3 strings
+tstart=136
+echo ${cutoff} ${mincellsize} ${thrs} ${tstart} > info.txt
 
 # input file for precip cells
 FIN=$modelo/test1plus4K/level2/test1plus4K_budget.nc
