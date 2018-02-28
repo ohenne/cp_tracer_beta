@@ -33,7 +33,7 @@ INTEGER              :: srv_header_coarse(8)
 INTEGER              :: headlen
 
 ! time handling
-INTEGER              :: date, time, timestep
+INTEGER              :: date, time, timestep, time_step_event, Skip
 
 ! auxiliary variables
 REAL                 :: vx,vy
@@ -48,6 +48,7 @@ INTEGER              :: onset
 ! file names
 CHARACTER (len=90)   :: input_filename
 CHARACTER (len=90)   :: input_filename_v(2)
+CHARACTER (len=90), PARAMETER   :: input_filename2 = "irt_tracks_sorted.txt"
 CHARACTER (len=90)   :: input_fn_tracks
 CHARACTER (len=90)   :: output_filename
 CHARACTER (len=90)   :: mask_filename
@@ -87,6 +88,7 @@ OPEN(1,FILE=trim(input_filename),FORM='unformatted', ACTION='read')
 OPEN(10,FILE=trim(input_filename_v(1)),FORM='unformatted', ACTION='read')
 OPEN(11,FILE=trim(input_filename_v(2)),FORM='unformatted', ACTION='read')
 OPEN(12,FILE=trim(input_fn_tracks),    FORM='unformatted', ACTION='read')
+OPEN(13,FILE=trim(input_filename2),FORM='formatted', ACTION='read')
 
 ! open the output filenames
 OPEN(20,FILE=trim(output_filename),FORM='formatted', ACTION='write')
@@ -128,7 +130,7 @@ ALLOCATE(traced(INT(max_tracers),9))
 ALLOCATE(tracerfield(domsize_x,domsize_y,max_tfields))
 
 count_tracer=1
-
+READ (13,*) Skip,time_step_event
 ! beginning of main loop
 WRITE(*,*) "beginning main loop of irt_objects_release"
 DO
@@ -158,8 +160,7 @@ DO
  ENDIF
  
  track_numbers(:,:)=0
-! onset=136 !146 !138 ! automate this later
- IF (timestep .GE. onset) THEN
+ IF (timestep .GE. max(onset,time_step_event)) THEN
     ! reading the track input files
     READ (12,END=200) srv_header_input   
     IF (lperiodic) THEN
