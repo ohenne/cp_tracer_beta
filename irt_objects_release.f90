@@ -255,9 +255,10 @@ DO iy=1, domsize_y
 ENDDO
 
 IF (lperiodic) THEN
-  CALL write_srv(domainsize_x,domainsize_y,REAL(event_number(:,:,n_previous)),previousdate,previoustime,30)
+  CALL write_srv(domainsize_x,domainsize_y,REAL(event_number(:,:,n_previous)),previousdate,previoustime,30,previoustimestep)
 ELSE
-  CALL write_srv(domainsize_x,domainsize_y,REAL(event_number(2:domsize_x-1,2:domsize_y-1,n_previous)),previousdate,previoustime,30)
+  CALL write_srv(domainsize_x,domainsize_y,REAL(event_number(2:domsize_x-1,2:domsize_y-1,n_previous)),&
+                 previousdate,previoustime,30,previoustimestep)
 ENDIF
 
 counter_total_previous = counter_total_actual
@@ -469,12 +470,12 @@ END PROGRAM irt_objects
 !++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 
-SUBROUTINE write_srv(domainsize_x,domainsize_y,field,date,time,file_id)
+SUBROUTINE write_srv(domainsize_x,domainsize_y,field,date,time,file_id,timestep)
 
   IMPLICIT NONE
   INTEGER, INTENT(IN)   :: domainsize_x,domainsize_y
   REAL, INTENT(IN)      :: field(domainsize_x,domainsize_y)
-  INTEGER, INTENT(IN)   :: date,time
+  INTEGER, INTENT(IN)   :: date,time,timestep
   INTEGER, INTENT(IN)   :: file_id
   INTEGER               :: srv_header(8)
 
@@ -484,7 +485,7 @@ SUBROUTINE write_srv(domainsize_x,domainsize_y,field,date,time,file_id)
   srv_header(4) = time        ! Zeitinkrement
   srv_header(5) = domainsize_x
   srv_header(6) = domainsize_y
-  srv_header(7) = 0
+  srv_header(7) = timestep !timestep
   srv_header(8) = 0
 
   WRITE (file_id) srv_header
