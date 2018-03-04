@@ -16,7 +16,8 @@
 set -ex
 
 # settings
-STAM='test1plus4K' # Project name
+STEM='test1plus4K' # Project name
+mkdir -p ${STEM}
 
 cutoff=0.1       # cut off from precipitation, use 3 strings
 thrs=1.0         # not yet used, use 3 strings
@@ -54,12 +55,42 @@ elif [ $1 == 'raintrack' ];then # run the rain cell tracking
 
 elif [ $1 == 'cptrack' ];then   # or the cp tracking
   echo 'argument one: cold pool tracking'
+  cp ${STEM}/irt_tracks_mask_r_int.srv irt_tracks_mask.srv
+  cp ${STEM}/irt_tracks_sorted_r_int.txt irt_tracks_sorted.txt
+  cdo -f srv selvar,r_int ${FIN} irt_objects_input_00.srv  
   cdo -f srv sellevel,50 ${WINDIN}/test1plus4K.out.vol.u.nc irt_objects_input_u.srv
   cdo -f srv sellevel,50 ${WINDIN}/test1plus4K.out.vol.v.nc irt_objects_input_v.srv
   ./irt_cp_tracking.x
   # clean up 
   cdo -f nc copy irt_objects_tracer.srv irt_objects_tracer.nc 
   #rm *.srv
+elif [ $1 == 'cptrack3d' ];then   # or the cp tracking
+  echo 'argument one: cold pool tracking 3D'
+
+  if [ ! -f input/irt_objects_input_u3D.srv ]; then
+    cdo -f srv copy ${WINDIN}/test1plus4K.out.vol.u.nc input/irt_objects_input3D_u.srv
+  fi
+  if [ ! -f input/irt_objects_input_v3D.srv ]; then
+    cdo -f srv copy ${WINDIN}/test1plus4K.out.vol.v.nc input/irt_objects_input_v3D.srv
+  fi
+  if [ ! -f input/irt_objects_input_w3D.srv ]; then
+    cdo -f srv copy ${WINDIN}/test1plus4K.out.vol.w.nc input/irt_objects_input_w3D.srv
+  fi
+  if [ ! -f input/irt_objects_input_00_r_int.srv ]; then
+    cdo -f srv selvar,r_int $FIN input/irt_objects_input_00_r_int.srv
+  fi
+  ln -sfn input/irt_objects_input_00_r_int.srv irt_objects_input_00.srv
+  ln -sfn ${STEM}/irt_tracks_mask_r_int.srv irt_tracks_mask.srv
+  ln -sfn ${STEM}/irt_tracks_sorted_r_int.txt irt_tracks_sorted.txt
+  ln -sfn input/irt_objects_input_u3D.srv irt_objects_input_u.srv
+  ln -sfn input/irt_objects_input_v3D.srv irt_objects_input_v.srv
+  ln -sfn input/irt_objects_input_w3D.srv irt_objects_input_w.srv
+ 
+  ./irt_cp_tracking3D.x
+  # clean up 
+  #   cdo -f nc copy irt_objects_tracer.srv irt_objects_tracer.nc
+  #     #rm *.srv
+  #
 fi
 
 #if second arguments: 
@@ -76,12 +107,24 @@ if [ $# -gt 1 ];then
 
   elif [ $2 == 'cptrack' ];then
     echo 'argument two: cold pool tracking'
+    cp ${STEM}/irt_tracks_mask_r_int.srv irt_tracks_mask.srv
+    cp ${STEM}/irt_tracks_sorted_r_int.txt irt_tracks_sorted.txt
+    cdo -f srv selvar,r_int ${FIN} irt_objects_input_00.srv
     cdo -f srv sellevel,50 ${WINDIN}/test1plus4K.out.vol.u.nc irt_objects_input_u.srv
     cdo -f srv sellevel,50 ${WINDIN}/test1plus4K.out.vol.v.nc irt_objects_input_v.srv
    ./irt_cp_tracking.x
    # clean up 
    cdo -f nc copy irt_objects_tracer.srv irt_objects_tracer.nc
    #rm *.srv
+  elif [ $1 == 'cptrack3d' ];then   # or the cp tracking
+    echo 'argument one: cold pool tracking'
+    cp ${STEM}/irt_tracks_mask_r_int.srv irt_tracks_mask.srv
+    cp ${STEM}/irt_tracks_sorted_r_int.txt irt_tracks_sorted.txt
+    cdo -f srv selvar,r_int ${FIN} irt_objects_input_00.srv
+    cdo -f srv ${WINDIN}/test1plus4K.out.vol.u.nc irt_objects_input_u.srv
+    cdo -f srv ${WINDIN}/test1plus4K.out.vol.v.nc irt_objects_input_v.srv
+    cdo -f srv ${WINDIN}/test1plus4K.out.vol.w.nc irt_objects_input_w.srv
+    ./irt_cp_tracking3D.x
   fi
 fi
 if [ $# -gt 2 ];then
@@ -92,14 +135,37 @@ if [ $# -gt 2 ];then
     ./irt_cp_tracking.x
     # clean up 
     cdo -f nc copy irt_objects_tracer.srv irt_objects_tracer.nc
-    rm *.srv
+    #rm *.srv
+  elif [ $1 == 'cptrack3d' ];then   # or the cp tracking
+    echo 'argument one: cold pool tracking'
+    cp ${STEM}/irt_tracks_mask_r_int.srv irt_tracks_mask.srv
+    cp ${STEM}/irt_tracks_sorted_r_int.txt irt_tracks_sorted.txt
+    cdo -f srv selvar,r_int ${FIN} irt_objects_input_00.srv
+    cdo -f srv ${WINDIN}/test1plus4K.out.vol.u.nc irt_objects_input_u.srv
+    cdo -f srv ${WINDIN}/test1plus4K.out.vol.v.nc irt_objects_input_v.srv
+    cdo -f srv ${WINDIN}/test1plus4K.out.vol.w.nc irt_objects_input_w.srv
+    ./irt_cp_tracking3D.x
     
   fi
 fi
 
+
 # create output directory and save the results
-mkdir  ${STAM}
 echo 'cutoff mincellsize thrs' > info.txt
-mv info.txt ${STAM}/.
-mv cp_history.txt ${STAM}/.
-cp irt_objects_tracer.nc ${STAM}/.
+mv info.txt ${STEM}/info_r_int.txt
+#cp test1plus4K ${STEM}/. 
+mv cp_history.txt ${STEM}/. | true 
+mv irt_objects_tracer.nc ${STEM}/irt_objects_tracer_r_int.nc | true
+mv irt_objects_tracer.srv ${STEM}/irt_objects_tracer_r_int.srv | true
+mv irt_objects_mask.srv ${STEM}/irt_objects_mask_r_int.srv| true
+mv irt_tracks_mask.srv ${STEM}/irt_tracks_mask_r_int.srv| true
+mv irt_tracks_nohead_output.txt ${STEM}/irt_tracks_nohead_output_r_int.txt | true
+mv irt_tracks_sorted.txt ${STEM}/irt_tracks_sorted_r_int.txt | true
+mv irt_tracks_output.txt ${STEM}/irt_tracks_output_r_int.txt | true
+mv irt_objects_output.txt ${STEM}/irt_objects_output_r_int.txt | true
+rm irt_objects_input_00.srv | true
+rm irt_advection_field.srv | true
+
+
+
+

@@ -2,11 +2,11 @@
 STEM=test1plus4K #experiment name
 FIN=$modelo/$STEM/level2/${STEM}_budget.nc # inputfile
 
-var0=r_int #initial rain tracking
-var1=gwp #variable to track 
+var0=$1 # gwp #r_int #gwp #rwp #r_int #gwp #r_int #initial rain tracking
+var1=$2 #cwp #cwp #gwp #rwp #cwp #variable to track 
 #var2=cwp
 
-cutoff_var1=0.5       # cut off from itracked variable, use 3 strings
+cutoff_var1=$3       # cut off from itracked variable, use 3 strings
 thrs=1.0         # not yet used, use 3 strings
 mincellsize=4  #minimum rain cell size, use 3 strings
 echo ${cutoff_var1} ${mincellsize} ${thrs} ${tstart} > info.txt
@@ -22,13 +22,13 @@ cdo -f srv selvar,$var1 $FIN irt_objects_input_00.srv
 sort -n -k2 irt_tracks_nohead_output.txt > irt_tracks_sorted.txt
 ./irt_trackmask_release.x
 
-cp irt_objects_mask.srv ${STEM}/irt_objects_mask_${var1}.srv
-cp irt_tracks_mask.srv ${STEM}/irt_tracks_mask_${var1}.srv
-cp irt_tracks_mask.srv ${STEM}/irt_tracks_mask_${var1}.srv
-cp irt_tracks_nohead_output.txt ${STEM}/irt_tracks_nohead_output_${var1}.txt
-cp irt_tracks_output.txt ${STEM}/irt_tracks_output_${var1}.txt
-cp irt_objects_output.txt ${STEM}/irt_objects_output_${var1}.txt
-
+rm irt_objects_input_00.srv 
+mv irt_objects_mask.srv ${STEM}/irt_objects_mask_${var1}.srv
+mv irt_tracks_mask.srv ${STEM}/irt_tracks_mask_${var1}.srv
+mv irt_tracks_nohead_output.txt ${STEM}/irt_tracks_nohead_output_${var1}.txt
+mv irt_tracks_output.txt ${STEM}/irt_tracks_output_${var1}.txt
+mv irt_objects_output.txt ${STEM}/irt_objects_output_${var1}.txt
+rm irt_advection_field.srv | true 
 ########################################################
 # make required files:
 ########################################################
@@ -55,8 +55,8 @@ cp irt_objects_output.txt ${STEM}/irt_objects_output_${var1}.txt
 cp ${STEM}/irt_tracks_output_${var0}.txt irt_tracks_output.txt
 ./cut.bsh
 sort -n -k2 headerfile.txt > irt_tracks_header_sorted.txt
-
-
+cp irt_tracks_header_sorted.txt ${STEM}/irt_tracks_header_sorted_${var0}.txt
+rm headerfile.txt
 
 ########################################################
 # find overlaying rain and cloud tracks:
@@ -68,3 +68,9 @@ cp ${STEM}/irt_tracks_mask_${var1}.srv irt_tracks_mask_2nd.srv
 
 # start programm ..
 ./celloverlays.x
+
+#save output
+mv cloud_rain_overlap.txt ${STEM}/${var1}_${var0}_overlap.txt
+
+rm irt_tracks_mask_main.srv irt_tracks_mask_2nd.srv
+rm irt_tracks*.txt  

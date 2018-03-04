@@ -131,6 +131,7 @@ ALLOCATE(tracerfield(domsize_x,domsize_y,max_tfields))
 
 count_tracer=1
 READ (13,*) Skip,time_step_event
+WRITE(*,*) "OCH", onset, time_step_event
 ! beginning of main loop
 WRITE(*,*) "beginning main loop of irt_objects_release"
 DO

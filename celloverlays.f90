@@ -28,9 +28,9 @@ OPEN(13,FILE=trim(input_filename3),    FORM='unformatted', ACTION='read')
 
 ! OPEN OUTPUT FILES
 OPEN(20,FILE=trim(output_filename0),FORM='formatted', ACTION='write')
-501 FORMAT (5X,A3,2(X,A7))
+501 FORMAT (5X,A3,2(X,A8))
 WRITE(20,501) 'ts ','IDmain','IDprev'
-500 FORMAT (3(3X,I4))
+500 FORMAT (4(4X,I4))
 
 ! ALLOCATE
 ALLOCATE(track_numbers1(domainsize_x,domainsize_y))
@@ -69,13 +69,19 @@ DO
       ! find current cellID1 in field and check which cloud track can be found
       IF (track_numbers1(ii,ij) .eq. cell_id_var1 &
          .and. track_numbers2(ii,ij) .gt. 0 ) THEN 
-        IF (.not. ANY(merker .eq. track_numbers2(ii,ij)))  THEN
+        IF (.not. ANY(merker(:) .eq. track_numbers2(ii,ij)))  THEN 
+          ! if the cloud tracknumber has not been associated with the current
+          ! rain track, ...
           WRITE(20,500) cell_ts_var1, cell_id_var1, INT(track_numbers2(ii,ij))
           merker(cmerker) = track_numbers2(ii,ij)
+          cmerker = cmerker +1
         END IF
       END IF
    END DO
   END DO
+  IF (cmerker .eq. 1)  !no previous event has been found
+              WRITE(20,500) cell_ts_var1, cell_id_var1, -1  
+  END IF
 !  300 CONTINUE
   IF (cell_ts_var1 .gt. prev_time) THEN
     ! read the next time step
