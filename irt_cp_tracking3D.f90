@@ -104,7 +104,7 @@ OPEN(40,FILE='cp_3Dhistory.txt',FORM='formatted', ACTION='write')
 151 FORMAT  (2X,A4,   1X,A6,   3X,A3, 2X,A7,   1X,A4,  2(8X, A4),    6X,A6,   3(2X,A4),2X, &
   A1, 3(X,A10))
 WRITE(40,151) 'time','tstart','age','traceID','cpID', 'Xpos','Ypos','Height','Xpos','Ypos','Zpos', &
-  'F', 'LWC/kgkg-1','GWC/kgkg-1', '    w/ms-1'
+  'F', 'LWC/gkg-1 ','GWC/gkg-1 ', '    w/ms-1'
 ! get the levels
 DO 
   READ(4,*,END=300) zi, zm(zi)
@@ -473,8 +473,8 @@ SUBROUTINE update_tracer(velx,vely,velz,domsize_x,domsize_y,domsize_z, &
            ELSE
              traced(it,10) = 0
            ENDIF 
-           LWC = QC(iz_new,ix_round_new,iy_round_new)! *1000.
-           GWC = QG(iz_new,ix_round_new,iy_round_new)! *1000.
+           LWC = QC(iz_new,ix_round_new,iy_round_new) *1000.
+           GWC = QG(iz_new,ix_round_new,iy_round_new) *1000.
   150 FORMAT (2X,I4,      3X,I4,2X,I4    ,3X,I5, 2X,I4,2X,3(F10.5,2X),3(I4,2X),I1,&
                           3(2X,F10.7))
            WRITE(40,150) timestep,INT(traced(it,6)),tracer_ts,it,INT(traced(it,9)),&
