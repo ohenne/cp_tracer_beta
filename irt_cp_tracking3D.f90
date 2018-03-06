@@ -148,7 +148,7 @@ count_tracer=1
 READ (3,*) Skip,time_step_event
 
 ! beginning of main loop
-WRITE(*,*) "beginning main loop of irt_objects_release"
+WRITE(*,*) "beginning main loop "
 DO
 
  date=srv_header_input(3)
@@ -177,11 +177,13 @@ DO
  
  track_numbers(:,:)=0
  IF (timestep .GE. max(onset,time_step_event)) THEN
-    CALL read_in_3d(vel(:,:,:,1), 'u', 'input/test1plus4K.out.vol.u.nc',timestep,2,74)
-    CALL read_in_3d(vel(:,:,:,2), 'v', 'input/test1plus4K.out.vol.v.nc',timestep,2,74)
-    CALL read_in_3d(vel(:,:,:,3), 'w', 'input/test1plus4K.out.vol.w.nc',timestep,1,74)
-    CALL read_in_3d(QC, 'l', '/nbi/ac/conv1/henneb/modeloutput/test1plus4K/level1/test1plus4K.out.vol.l.nc',timestep,2,74)
-    CALL read_in_3d(QG, 'rgrp','/nbi/ac/conv1/henneb/modeloutput//test1plus4K/level1/test1plus4K.out.vol.rgrp.nc',timestep,2,74)
+    CALL read_in_3d(vel(:,:,:,1), 'u', 'input/test1plus4K.out.vol.u.nc',timestep,2,domsize_z)
+    CALL read_in_3d(vel(:,:,:,2), 'v', 'input/test1plus4K.out.vol.v.nc',timestep,2,domsize_z)
+    CALL read_in_3d(vel(:,:,:,3), 'w', 'input/test1plus4K.out.vol.w.nc',timestep,1,domsize_z)
+    CALL read_in_3d(QC, 'l', '/nbi/ac/conv1/henneb/modeloutput/test1plus4K/level1/test1plus4K.out.vol.l.nc'&
+                   ,timestep,2,domsize_z)
+    CALL read_in_3d(QG, 'rgrp','/nbi/ac/conv1/henneb/modeloutput//test1plus4K/level1/test1plus4K.out.vol.rgrp.nc'&
+                   ,timestep,2,domsize_z)
     ! reading the track input files
     READ (2,END=200) srv_header_input   
     IF (lperiodic) THEN
@@ -203,12 +205,12 @@ DO
      IF (nneighb(ix,iy) .eq. 1) THEN
        CALL set_tracer(counter,domsize_x,domsize_y,nneighb, track_numbers, vel(1:2,:,:,:), & 
             COMx, COMy, timestep,traced,edge_fraction,max_no_of_cells, &
-            ntracer,count_tracer,max_tracers,already_tracked,zt)
+            ntracer,count_tracer,max_tracers,already_tracked,zt(1))
      ENDIF
    ENDDO
  ENDDO
  CALL update_tracer(vel(:,:,:,1),vel(:,:,:,2),vel(:,:,:,3),domsize_x,domsize_y, domsize_z,&
-      timestep,traced,resolution,dt,count_tracer,max_tracers,track_numbers,zt,QC,QG)
+      timestep,traced,resolution,dt,count_tracer,max_tracers,track_numbers,zt,zm,QC,QG)
  ! writing tracers to a grid (for time step output)
  tracerfield(:,:,:) = 0
  ntr = 1
@@ -308,11 +310,11 @@ SUBROUTINE set_tracer(counter,domsize_x,domsize_y,nneighb,track_numbers,vel,cent
   INTEGER, INTENT(IN)       :: timestep
   INTEGER, INTENT(IN)       :: max_no_of_cells
   INTEGER, INTENT(IN)       :: max_tracers
-  REAL, INTENT(IN)          :: zt(74)
+  REAL, INTENT(IN)          :: zt
   INTEGER, INTENT(INOUT)    :: ntracer
   REAL, INTENT(IN)          :: edge_fraction
   REAL                      :: center_of_mass_x(max_no_of_cells),center_of_mass_y(max_no_of_cells)
-  REAL, INTENT(INOUT)       :: traced(max_tracers,10)
+  REAL, INTENT(INOUT)       :: traced(max_tracers,11)
   REAL, INTENT(IN)          :: vel(2,domsize_x,domsize_y,3)
   INTEGER, INTENT(INOUT)    :: count_tracer
   INTEGER                   :: ix, iy
@@ -328,10 +330,10 @@ SUBROUTINE set_tracer(counter,domsize_x,domsize_y,nneighb,track_numbers,vel,cent
               IF (track_numbers(ix,iy) .GT. 0 .AND. track_numbers(ix,iy) .GE. 1) THEN 
                  traced(count_tracer,1) = ix 
                  traced(count_tracer,2) = iy
-                 traced(count_tracer,3) = zt(1) ! in meter not gridpoints, start
+                 traced(count_tracer,3) = zt    ! in meter not gridpoints, start
                                                 ! at full level 
-                 traced(count_tracer,4) = vx 
-                 traced(count_tracer,5) = vy 
+!nicht genutzt    traced(count_tracer,4) = vx 
+!                 traced(count_tracer,5) = vy 
                  traced(count_tracer,6) = timestep     ! timestep when tracking begins
                  traced(count_tracer,7) = 0   ! tracer age ???timestep     ! 
                  traced(count_tracer,8) = counter              ! ! OCH ist das die
@@ -339,6 +341,7 @@ SUBROUTINE set_tracer(counter,domsize_x,domsize_y,nneighb,track_numbers,vel,cent
 !nein? was fuer ein counter ist das?
                  traced(count_tracer,9) = track_numbers(ix,iy) ! TRACK ID 
                  traced(count_tracer,10) = 1.                   ! has tracer been involved in other precip events
+                 traced(count_tracer,11) = 1.
                  count_tracer           = count_tracer + 1     ! Das ist die Tracer ID ??? 
 !>>OCH 
 !150 format (2X,I10,2X,I10,2X,I4,2X, I4,2X,I3,2X,I3,2X,I1)  ! firstout put
@@ -369,7 +372,7 @@ END SUBROUTINE set_tracer
 
 SUBROUTINE update_tracer(velx,vely,velz,domsize_x,domsize_y,domsize_z, &
      timestep,traced,resolution, &
-     dt, count_tracer, max_tracers,track_numbers,zt, QC,QG)
+     dt, count_tracer, max_tracers,track_numbers,zt,zm, QC,QG)
   INTEGER, INTENT(IN)       :: domsize_x, domsize_y, domsize_z, timestep
   REAL, INTENT(IN)          :: velx(domsize_z,domsize_x,domsize_y), &
                                vely(domsize_z,domsize_x,domsize_y), &
@@ -382,115 +385,102 @@ SUBROUTINE update_tracer(velx,vely,velz,domsize_x,domsize_y,domsize_z, &
   INTEGER                   :: tracer_ts, it
   REAL, INTENT(INOUT)       :: traced(max_tracers,11)
   REAL, INTENT(IN)          :: dt
-  REAL, INTENT(IN)          :: zt(74)
-  REAL                      :: ix_new, iy_new, hh_new, vx_new, vy_new
+  REAL, INTENT(IN)          :: zt(domsize_z), zm(domsize_z+1)
+  REAL                      :: ix_new, iy_new, hh_new, vx_intp, vy_intp, vz_intp
   REAL                      :: ix, iy, hh
   INTEGER                   :: iz_dummy(1)
   INTEGER                   :: ix_round, iy_round,iz_round, tottracer, start_time, ix_org, iy_org
+  INTEGER                   :: ix_m, iy_m 
   INTEGER                   :: ix_round_new, iy_round_new, iz_new
-  REAL                      :: vx_lft, vx_rgt, vx_mn, vy_bot, vy_top, vy_mn, wgt_x, wgt_y
+  REAL                      :: vx_lft, vx_rgt, vy_bot, vy_top,  wgt_x, wgt_y, wgt_zh, wgt_zf
   REAL                      :: LWC, GWC
-     it=1 
-     ! updating previous tracers
-     DO WHILE (it .LT. count_tracer)        
-!      IF (traced(it,11) =True) THEN
-       ! determining the first time step of the event
-       start_time=traced(it,6)
-       ! determining how many timesteps have passed since then
-       tracer_ts =timestep-start_time+1  
-        
-       IF (start_time .GT. 0) THEN
-         ! getting the previous positions
-         ix=traced(it,1)
-         iy=traced(it,2) ! position in gridpoints
-         hh=traced(it,3) ! height in meter
-         ix_round=MOD(INT(ix)-1+domsize_x,domsize_x)+1
-         iy_round=MOD(INT(iy)-1+domsize_y,domsize_y)+1
-         iz_dummy = MINLOC(ABS(zt(:)-hh))
-         iz_round=iz_dummy(1) !locate full level closest to height of tracer
+  it=1 
+  ! updating previous tracers
+  DO WHILE (it .LT. count_tracer)        
+    IF (traced(it,11)  .eq. 1.) THEN  !trace only if tracer is active
+      ! determining the first time step of the event
+      start_time=traced(it,6)
+      ! determining how many timesteps have passed since then
+      tracer_ts =timestep-start_time+1  
+     
+      IF (start_time .GT. 0) THEN
+        ! getting the previous positions
+        ix=traced(it,1)
+        iy=traced(it,2) ! position in gridpoints
+        hh=traced(it,3) ! height in meter
+        IF (hh .lt. 10000.) THEN
+          ix_round=MOD(INT(ix)-1+domsize_x,domsize_x)+1
+          iy_round=MOD(INT(iy)-1+domsize_y,domsize_y)+1
+          ix_m=MOD(INT(ix)-2+domsize_x,domsize_x)+1
+          iy_m=MOD(INT(iy)-2+domsize_y,domsize_y)+1
 
-       IF (ix .GT. 0 .AND. iy .GT. 0) THEN ! bogus now?
-!         ix_round=MOD(INT(ix)-1,domsize_x)+1
-!         iy_round=MOD(INT(iy)-1,domsize_y)+1
-          ix_new = ix + dt*velx(iz_round,ix_round,iy_round)/resolution
-          iy_new = iy + dt*vely(iz_round,ix_round,iy_round)/resolution
-! get tracer height in meter. Using vertical velocity on full level (zt), zm
-! starts at 0m, zt starts at 50m, thus take iz pos ant iz+1 for interpolation, 
-! if tracer hits the ground. lift back to 50m
-         IF (iz_round+1 .lt. domsize_z) THEN
-           hh_new = MAX(hh + dt*((velz(iz_round,ix_round,iy_round) + & !interpolate w to full level
-                                   velz(iz_round+1,ix_round,iy_round))/2.),50.) !height in m 
-           IF (ix_new .LT. 1) THEN 
-             ix_new = ix_new + domsize_x
-           ENDIF
-  !         ix_round=MOD(INT(ix)-1+domsize_x,domsize_x)+1
-  !         iy_round=MOD(INT(iy)-1+domsize_y,domsize_y)+1
-  
-           IF (ix_new .GT. domsize_x) THEN 
-             ix_new = ix_new - domsize_x
-           ENDIF
-  
-           IF (iy_new .LT. 1) THEN 
-             iy_new = iy_new + domsize_y
-           ENDIF
-  
-           IF (iy_new .GT. domsize_y) THEN 
-             iy_new = iy_new - domsize_y
-           ENDIF
-           ix_round_new=MOD(INT(ix_new)-1+domsize_x,domsize_x)+1
-           iy_round_new=MOD(INT(iy_new)-1+domsize_y,domsize_y)+1
-           iz_dummy=MINLOC(ABS(zt(:)-hh_new)) !OCH
-           iz_new = iz_dummy(1)
-           ! ix_new, iy_new are a decimal numbers. Need corresponding velocity.
-           ! OCH warum wird mit denen nicht gerechnet? 
-           vx_lft = velx(iz_new,ix_round_new,iy_round_new)
-           vx_rgt = velx(iz_new,MOD(INT(ix_new+1)-1+domsize_x,domsize_x)+1,iy_round_new)
-           vx_mn  = .5*(vx_lft+vx_rgt) ! mean of vx
-  
-           vy_bot = vely(iz_new,ix_round_new,iy_round_new)
-           vy_top = vely(iz_new,ix_round_new,MOD(INT(iy_new+1)-1+domsize_y,domsize_y)+1)
-           vy_mn  = .5*(vy_bot+vy_top) ! mean of vy
-           wgt_x  = MOD(ix_new,1.)
-           vx_new = (1.-wgt_x)*vx_lft + wgt_x*vx_rgt
-  
-           wgt_y  = MOD(iy_new,1.)
-           vy_new = (1.-wgt_y)*vy_bot + wgt_y*vy_top
-  
-           !
-           traced(it,1) = ix_new
-           traced(it,2) = iy_new
-           traced(it,3) = hh_new
-           traced(it,4) = vx_new
-           traced(it,5) = vy_new
-           traced(it,7) = tracer_ts
-  
-           IF (traced(it,10) .eq. 0) THEN    ! if tracer is dead cant get back 
-             traced(it,9) = 0  ! stays dead
-           ! else (if it was alive) it keeps living as long no other precip
-           ! event is above
-           ELSEIF (track_numbers(ix_round,iy_round) .eq. traced(it,9) .or. track_numbers(ix_round,iy_round) .le. 0. ) THEN
-             traced(it,10) = 1
-           ELSE
-             traced(it,10) = 0
-           ENDIF 
-           LWC = QC(iz_new,ix_round_new,iy_round_new) *1000.
-           GWC = QG(iz_new,ix_round_new,iy_round_new) *1000.
-  150 FORMAT (2X,I4,      3X,I4,2X,I4    ,3X,I5, 2X,I4,2X,3(F10.5,2X),3(I4,2X),I1,&
-                          3(2X,F10.7))
-           WRITE(40,150) timestep,INT(traced(it,6)),tracer_ts,it,INT(traced(it,9)),&
-                          ix_new,iy_new,hh_new,ix_round_new,iy_round_new,iz_new, INT(traced(it,10)), &
-                          LWC, GWC, velz(iz_new,ix_round_new,iy_round_new)
-  !<<OCH             
-          ENDIF
-!       ELSE
-        ! set traced(it,11) = False stop tracing this tracer 
-       ENDIF  ! end if tracer has not left upper bound
-     ENDIF
-!   ENDIF ! end if tracer is true
-     it = it + 1
+          ! get weights for vertical interpolation 
+          wgt_x  = MOD(ix,1.)
+          wgt_y  = MOD(iy,1.)
+
+          ! in z for half level
+          izm = 1
+          DO WHILE (zm(izm)-hh .lt. 0. )  ! Loop untill levelheight(iz) is below hh
+            izm= izm+1                   ! First level above hh
+          END DO
+          ! and full level
+          izt = 1
+          DO WHILE (zt(izt)-hh .lt. 0. )  
+            izt= izt+1
+          END DO
+          ! distance to the next upper level =weight to the upper level(izm)          
+          wgt_zh = ((zm(izm)-hh))/(zm(izm)-zm(izm-1))   
+          wgt_zf = ((zt(izt)-hh))/(zt(izt)-zt(izt-1))   
+
+          ! 3D inter
+          CALL trilininterpol(vx_intp,velx(izt-1:izt,(/ix_m,ix_round/),(/iy_m,iy_round/)),wgt_x,wgt_y,wgt_z)
+          CALL trilininterpol(vy_intp,vely(izt-1:izt,(/ix_m,ix_round/),(/iy_m,iy_round/)),wgt_x,wgt_y,wgt_z)
+          CALL trilininterpol(vz_intp,velz(izm-1:izt,(/ix_m,ix_round/),(/iy_m,iy_round/)),wgt_x,wgt_y,wgt_z)
+
+! kann vlt weg    IF (ix .GT. 0 .AND. iy .GT. 0) THEN ! bogus now?
+
+          ! get new location as decimal
+          ix_new = MOD((ix + dt*vx_intp/resolution)-1.+FLOAT(domsize_x),FLOAT(domsize_x))+1.
+          iy_new = MOD((iy + dt*vy_intp/resolution)-1.+FLOAT(domsize_y),FLOAT(domsize_y))+1.
+          hh_new = MAX(hh + dt*vz_intp,50.) !keep tracer minimum on first full level zt(1)  
+
+          ! and as gridded values
+          ix_round_new=MOD(INT(ix_new)-1+domsize_x,domsize_x)+1
+          iy_round_new=MOD(INT(iy_new)-1+domsize_y,domsize_y)+1
+          iz_dummy=MINLOC(ABS(zt(:)-hh_new)) 
+          iz_new = iz_dummy(1)
+
+          ! save new values for next loop
+          traced(it,1) = ix_new
+          traced(it,2) = iy_new
+          traced(it,3) = hh_new
+!          traced(it,4) = vx_new do we need to save this values? 
+!          traced(it,5) = vy_new
+          traced(it,7) = tracer_ts
+          traced(it,11) = 1
+          !IF (traced(it,10) .eq. 0) THEN    ! if tracer is dead cant get back 
+          !  traced(it,9) = 0  ! stays dead
+          !  ! else (if it was alive) it keeps living as long no other precip
+          !  ! event is above
+          !ELSEIF (track_numbers(ix_round,iy_round) .eq. traced(it,9) .or. track_numbers(ix_round,iy_round) .le. 0. ) THEN
+          !  traced(it,10) = 1
+          !ELSE
+          !  traced(it,10) = 0
+          !ENDIF 
+          LWC = QC(iz_new,ix_round_new,iy_round_new) *1000.
+          GWC = QG(iz_new,ix_round_new,iy_round_new) *1000.
+          150 FORMAT (2X,I4,      3X,I4,2X,I4    ,3X,I5, 2X,I4,2X,3(F10.5,2X),3(I4,2X),I1,&
+                                   3(2X,F10.7))
+          WRITE(40,150) timestep,INT(traced(it,6)),tracer_ts,it,INT(traced(it,9)),&
+                         ix_new,iy_new,hh_new,ix_round_new,iy_round_new,iz_new, INT(traced(it,10)), &
+                         LWC, GWC, velz_fl
+        ELSE ! set tracer inactive if it is to high 
+          traced(it,11) = 0.
+        ENDIF ! end if: check if tracer is too high
+      ENDIF  ! end if start time .gt. 0
+    END IF ! check if tracer is active   
+    it = it + 1
   ENDDO
-! WRITE(40,*) ix_new, iy+new, timestep, counter, track_numbers(ix,iy)
-
   RETURN
 END SUBROUTINE update_tracer
 
@@ -566,3 +556,22 @@ SUBROUTINE neigh(domsize_x,domsize_y,track_numbers,nneighb,COMx,COMy,input_field
 
 END SUBROUTINE neigh
 
+
+SUBROUTINE trilininterpol(v_intp,vel,wgt_x,wgt_y,wgt_z)
+
+  IMPLICIT NONE
+  REAL, INTENT(INOUT) :: v_intp
+  REAL, INTENT(IN) :: vel(2,2,2)
+  REAL, INTENT(IN) :: wgt_x,wgt_y,wgt_z
+
+
+  v_intp = vel(1,1,1) *(1.-wgt_x)*(1.-wgt_y)*wgt_z &
+         + vel(1,1,2) *(1.-wgt_x)*(   wgt_y)*wgt_z &
+         + vel(1,2,2) *(   wgt_x)*(   wgt_y)*wgt_z &
+         + vel(1,2,1) *(   wgt_x)*(1.-wgt_y)*wgt_z &
+         + vel(2,1,1) *(1.-wgt_x)*(1.-wgt_y)*(1.-wgt_z) &
+         + vel(2,1,2) *(1.-wgt_x)*(   wgt_y)*(1.-wgt_z) &
+         + vel(2,2,2) *(   wgt_x)*(   wgt_y)*(1.-wgt_z) &
+         + vel(2,2,1) *(   wgt_x)*(1.-wgt_y)*(1.-wgt_z) 
+
+END SUBROUTINE trilininterpol
