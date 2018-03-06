@@ -101,10 +101,10 @@ OPEN(36,FILE=trim(mask_tracer),FORM='unformatted', ACTION='write')
 OPEN(40,FILE='cp_3Dhistory.txt',FORM='formatted', ACTION='write')
 
 ! text output file, write header
-151 FORMAT  (2X,A4,   1X,A6,   3X,A3, 2X,A7,   1X,A4,  2(8X, A4),    6X,A6,   3(2X,A4),2X, &
+151 FORMAT  (2X,A4,   1X,A6,   3X,A3, 2X,A7,   1X,A4,  2(8X, A4),    7X,A6,   3(2X,A4),2X, &
   A1, 3(X,A10))
 WRITE(40,151) 'time','tstart','age','traceID','cpID', 'Xpos','Ypos','Height','Xpos','Ypos','Zpos', &
-  'F', 'LWC/gkg-1 ','GWC/gkg-1 ', '    w/ms-1'
+  'F', ' LWC/gkg-1',' GWC/gkg-1', '    w/ms-1'
 ! get the levels
 DO 
   READ(4,*,END=300) zi, zm(zi)
@@ -435,7 +435,7 @@ SUBROUTINE update_tracer(velx,vely,velz,domsize_x,domsize_y,domsize_z, &
           ! 3D inter
           CALL trilininterpol(vx_intp,velx(izt-1:izt,(/ix_m,ix_round/),(/iy_m,iy_round/)),wgt_x,wgt_y,wgt_z)
           CALL trilininterpol(vy_intp,vely(izt-1:izt,(/ix_m,ix_round/),(/iy_m,iy_round/)),wgt_x,wgt_y,wgt_z)
-          CALL trilininterpol(vz_intp,velz(izm-1:izt,(/ix_m,ix_round/),(/iy_m,iy_round/)),wgt_x,wgt_y,wgt_z)
+          CALL trilininterpol(vz_intp,velz(izm-1:izm,(/ix_m,ix_round/),(/iy_m,iy_round/)),wgt_x,wgt_y,wgt_z)
 
 ! kann vlt weg    IF (ix .GT. 0 .AND. iy .GT. 0) THEN ! bogus now?
 
@@ -445,8 +445,8 @@ SUBROUTINE update_tracer(velx,vely,velz,domsize_x,domsize_y,domsize_z, &
           hh_new = MAX(hh + dt*vz_intp,50.) !keep tracer minimum on first full level zt(1)  
 
           ! and as gridded values
-          ix_round_new=MOD(INT(ix_new)-1+domsize_x,domsize_x)+1
-          iy_round_new=MOD(INT(iy_new)-1+domsize_y,domsize_y)+1
+          ix_round_new= INT(ix_new) !MOD(INT(ix_new)-1+domsize_x,domsize_x)+1
+          iy_round_new=INT(iy_new)  !MOD(INT(iy_new)-1+domsize_y,domsize_y)+1
           iz_dummy=MINLOC(ABS(zt(:)-hh_new)) 
           iz_new = iz_dummy(1)
 
@@ -469,11 +469,12 @@ SUBROUTINE update_tracer(velx,vely,velz,domsize_x,domsize_y,domsize_z, &
           !ENDIF 
           LWC = QC(iz_new,ix_round_new,iy_round_new) *1000.
           GWC = QG(iz_new,ix_round_new,iy_round_new) *1000.
-          150 FORMAT (2X,I4,      3X,I4,2X,I4    ,3X,I5, 2X,I4,2X,3(F10.5,2X),3(I4,2X),I1,&
-                                   3(2X,F10.7))
-          WRITE(40,150) timestep,INT(traced(it,6)),tracer_ts,it,INT(traced(it,9)),&
-                         ix_new,iy_new,hh_new,ix_round_new,iy_round_new,iz_new, INT(traced(it,10)), &
-                         LWC, GWC, velz_fl
+          150 FORMAT   (2X,I4,   3X,I4,            2X,I4    ,3X,I5, 2X,I4, &
+                        2(2X,F10.5),  2X,F11.5,3(2X,I4),                        2X,I1,&
+                        3(2X,F10.6))
+          WRITE(40,150) timestep,INT(traced(it,6)),tracer_ts,it    ,INT(traced(it,9)),&
+                        ix_new,iy_new,hh_new ,ix_round_new,iy_round_new,iz_new, INT(traced(it,10)), &
+                         LWC, GWC, vz_intp 
         ELSE ! set tracer inactive if it is to high 
           traced(it,11) = 0.
         ENDIF ! end if: check if tracer is too high
