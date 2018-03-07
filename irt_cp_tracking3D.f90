@@ -20,7 +20,7 @@ IMPLICIT NONE
 
 INTEGER              :: domsize_x, domsize_y, domsize_z
 INTEGER              :: ii, ij,ix,iy,idx,idy 
-REAL, ALLOCATABLE    :: input_field(:,:)       ! eg precip field
+REAL, ALLOCATABLE    :: input_field(:,:)       ! eg precip field to find COGs
 REAL, ALLOCATABLE    :: vel(:,:,:,:)           ! velocity field
 REAL, ALLOCATABLE    :: QC(:,:,:), QG(:,:,:)   ! passive tracer 
 REAL, ALLOCATABLE    :: track_numbers(:,:)     ! ID for precip and coldpools objects
@@ -46,17 +46,13 @@ INTEGER              :: onset
 
 ! file names
 CHARACTER (len=90)   :: input_filename
-CHARACTER (len=90)   :: input_filename_v(3)
-CHARACTER (len=90), PARAMETER   :: input_filename2 = "irt_tracks_sorted.txt"
+CHARACTER (len=90), PARAMETER   :: input_filename2 = "input/irt_tracks_sorted.txt"
 CHARACTER (len=90)   :: input_fn_tracks
-CHARACTER (len=90)   :: output_filename
-CHARACTER (len=90)   :: mask_filename
 CHARACTER (len=90)   :: mask_nneighb
 CHARACTER (len=90)   :: mask_u
 CHARACTER (len=90)   :: mask_v
 CHARACTER (len=90)   :: mask_rv
 CHARACTER (len=90)   :: mask_tracer
-CHARACTER (len=90)   :: coarsevel_filename
 
 INTEGER              :: ierr
 
@@ -64,40 +60,27 @@ INTEGER              :: ierr
     call cpu_time(start)
 ! open the info file to get information on timestep starting
 999 FORMAT(12X, I3)
-open(unit=100,file='info.txt',status='old',action=&
-     'read', iostat=ierr)
-if ( ierr == 0) then
-    read(100,999) onset 
-else
-     write(*,*) 'Beim OEffenen der Datei ist ein Fehler Nr.', &
-                 ierr,' aufgetreten'
-end if
-WRITE(input_filename,"(A24)") "irt_objects_input_00.srv"
-WRITE(input_filename_v(1),"(A23)"),"irt_objects_input_u.srv"
-WRITE(input_filename_v(2),"(A23)"),"irt_objects_input_v.srv"
-WRITE(input_filename_v(3),"(A23)"),"irt_objects_input_w.srv"
-WRITE(input_fn_tracks,"(A19)"),    "irt_tracks_mask.srv"
+!open(unit=100,file='info.txt',status='old',action=&
+!     'read', iostat=ierr)
+!if ( ierr == 0) then
+!    read(100,999) onset 
+!else
+!     write(*,*) 'Beim OEffenen der Datei ist ein Fehler Nr.', &
+!                 ierr,' aufgetreten'
+!end if
+onset = 136
+WRITE(input_filename,"(A24)") "input/irt_objects_input_00.srv" ! to find COGs
+WRITE(input_fn_tracks,"(A19)"),    "input/irt_tracks_mask.srv"
 
-! defining the output filenames
-output_filename    = "irt_objects_output.txt"
-mask_filename      = "irt_objects_mask.srv"
-mask_tracer        = "irt_objects_tracer.srv"
-coarsevel_filename = "irt_advection_field.srv"
 
 ! open the input filenames
-OPEN(1,FILE=trim(input_filename),FORM='unformatted', ACTION='read')
-OPEN(2,FILE=trim(input_fn_tracks),    FORM='unformatted', ACTION='read')
-OPEN(3,FILE=trim(input_filename2),FORM='formatted', ACTION='read')
-OPEN(4,FILE="level.txt",FORM='formatted', ACTION='read')
-
-OPEN(10,FILE=trim(input_filename_v(1)),FORM='unformatted', ACTION='read')
-OPEN(11,FILE=trim(input_filename_v(2)),FORM='unformatted', ACTION='read')
-OPEN(12,FILE=trim(input_filename_v(3)),FORM='unformatted', ACTION='read')
+OPEN(1,FILE='input/irt_objects_input_00.srv',FORM='unformatted', ACTION='read')
+OPEN(2,FILE='input/irt_tracks_mask.srv',    FORM='unformatted', ACTION='read')
+OPEN(3,FILE='input/irt_tracks_sorted.txt',FORM='formatted', ACTION='read')
+OPEN(4,FILE='input/level.txt',FORM='formatted', ACTION='read')
 
 ! open the output filenames
-OPEN(20,FILE=trim(output_filename),FORM='formatted', ACTION='write')
-OPEN(30,FILE=trim(mask_filename),FORM='unformatted', ACTION='write')
-OPEN(36,FILE=trim(mask_tracer),FORM='unformatted', ACTION='write')
+OPEN(36,FILE='irt_objects_tracer.srv',FORM='unformatted', ACTION='write')
 OPEN(40,FILE='cp_3Dhistory.txt',FORM='formatted', ACTION='write')
 
 ! text output file, write header
@@ -145,35 +128,38 @@ ALLOCATE(QC(domsize_z,domsize_x,domsize_y))
 ALLOCATE(QG(domsize_z,domsize_x,domsize_y))
 
 count_tracer=1
-READ (3,*) Skip,time_step_event
+READ(3,*) Skip,time_step_event
 
 ! beginning of main loop
 WRITE(*,*) "beginning main loop "
 DO
-
  date=srv_header_input(3)
  time=srv_header_input(4)
  timestep=timestep+1 ! OCH: starts with 0 ?
+WRITE(*,*) "at",timestep
+
  ! reading the velocity input files
 ! DO fileid=10,11,12 !OCH add third field
 !  DO ik = 1,domsize_z
-!    READ (fileid,END=200) srv_header_input   
+!    READ(fileid,END=200) srv_header_input   
 !    IF (lperiodic) THEN
-!       READ (fileid) vel(:,:,1,fileid-9) 
+!       READ(fileid) vel(:,:,1,fileid-9) 
 !    ELSE
 !       vel(:,:,fileid-9) = miss-1.
-!       READ (fileid) vel(2:domsize_x-1,2:domsize_y-1,fileid-9)
+!       READ(fileid) vel(2:domsize_x-1,2:domsize_y-1,fileid-9)
 !    ENDIF
 ! ENDDO
  
  ! reading the standard input fields
- READ (1,END=200) srv_header_input
+ READ(1,END=200) srv_header_input
+WRITE(*,*) "RAED 1 input/irt_objects_input_00.srv header"
  IF (lperiodic) THEN
-   READ (1) input_field(:,:)
+   READ(1) input_field(:,:)
  ELSE
    input_field(:,:) = miss-1.
-   READ (1) input_field(2:domsize_x-1,2:domsize_y-1)
+   READ(1) input_field(2:domsize_x-1,2:domsize_y-1)
  ENDIF
+WRITE(*,*) "RAED 1 input/irt_objects_input_00.srv file"
  
  track_numbers(:,:)=0
  IF (timestep .GE. max(onset,time_step_event)) THEN
@@ -185,12 +171,14 @@ DO
     CALL read_in_3d(QG, 'rgrp','/nbi/ac/conv1/henneb/modeloutput//test1plus4K/level1/test1plus4K.out.vol.rgrp.nc'&
                    ,timestep,2,domsize_z)
     ! reading the track input files
-    READ (2,END=200) srv_header_input   
+    READ(2,END=200) srv_header_input   
+WRITE(*,*) "RAED 2input/irt_tracks_mask.srv "
+
     IF (lperiodic) THEN
-       READ (2) track_numbers(:,:)
+       READ(2) track_numbers(:,:)
     ELSE
        track_numbers(:,:) = miss-1.
-       READ (2) track_numbers(2:domsize_x-1,2:domsize_y-1)
+       READ(2) track_numbers(2:domsize_x-1,2:domsize_y-1)
     ENDIF
  ENDIF
  ! initializing/clearing several fields
@@ -241,10 +229,7 @@ WRITE(*,*) 'finished main loop'
 200 CONTINUE
 
 ! close input/output files
-CLOSE(10)
 CLOSE(11)
-CLOSE(20)
-CLOSE(30)
 CLOSE(36)
 CLOSE(1)
 call cpu_time(finish)
@@ -538,12 +523,17 @@ SUBROUTINE neigh(domsize_x,domsize_y,track_numbers,nneighb,COMx,COMy,input_field
       jmodp = mod(j+domsize_y,domsize_y)+1
       jmodm = mod(j-2+domsize_y,domsize_y)+1
 
-      IF ((track_numbers(i,j) .ne. track_numbers(imodp,j) .or. &
-         (track_numbers(i,j) .ne. track_numbers(imodm,j)) .or. &
-         (track_numbers(i,j) .ne. track_numbers(i,jmodp)) .or. &
-         (track_numbers(i,j) .ne. track_numbers(i,jmodm)) ) ) THEN
-          nneighb(i,j) =1
-      END IF     
+      IF (track_numbers(i,j) .ne. track_numbers(imodp,j)) THEN nneighb((/i,imodp/),j) =1  
+      IF (track_numbers(i,j) .ne. track_numbers(imodm,j)) THEN nneighb((/i,imodm/),j) =1 
+      IF (track_numbers(i,j) .ne. track_numbers(i,jmodp)) THEN nneighb(i,(/j,jmodp/)) =1
+      IF (track_numbers(i,j) .ne. track_numbers(i,jmodm)) THEN nneighb(i,(/j,jmodm/)) =1 
+
+      ! diagonal neigh
+      IF (track_numbers(i,j) .ne. track_numbers(imodp,jmodp)) THEN nneighb(imodp,jmodp) =1
+      IF (track_numbers(i,j) .ne. track_numbers(imodm,jmodp)) THEN nneighb(imodm,jmodp) =1
+      IF (track_numbers(i,j) .ne. track_numbers(imodp,jmodm)) THEN nneighb(imodp,jmodp) =1
+      IF (track_numbers(i,j) .ne. track_numbers(imodm,jmodm)) THEN nneighb(imodm,jmodm) =1  
+
       IF (track_numbers(i,j) .gt. 0 .and. track_numbers(i,j) .lt. max_no_of_cells ) THEN
         COMx(INT(track_numbers(i,j))) = COMx(INT(track_numbers(i,j)))  + i*input_field(i,j) 
         COMy(INT(track_numbers(i,j))) = COMy(INT(track_numbers(i,j)))  + j*input_field(i,j)
