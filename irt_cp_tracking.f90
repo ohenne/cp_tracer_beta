@@ -48,7 +48,6 @@ INTEGER              :: onset
 ! file names
 CHARACTER (len=90)   :: input_filename
 CHARACTER (len=90)   :: input_filename_v(2)
-CHARACTER (len=90), PARAMETER   :: input_filename2 = "irt_tracks_sorted.txt"
 CHARACTER (len=90)   :: input_fn_tracks
 CHARACTER (len=90)   :: output_filename
 CHARACTER (len=90)   :: mask_filename
@@ -61,38 +60,40 @@ CHARACTER (len=90)   :: coarsevel_filename
 
 INTEGER              :: ierr
 
+    real :: start, finish
+    call cpu_time(start)
+!
 ! open the info file to get information on timestep starting
 999 FORMAT(12X, I3)
-open(unit=100,file='info.txt',status='old',action=&
-     'read', iostat=ierr)
-if ( ierr == 0) then
-    read(100,999) onset 
-else
-     write(*,*) 'Beim OEffenen der Datei ist ein Fehler Nr.', &
-                 ierr,' aufgetreten'
-end if
+!open(unit=100,file='info.txt',status='old',action=&
+!     'read', iostat=ierr)
+!if ( ierr == 0) then
+!    read(100,999) onset 
+!else
+!     write(*,*) 'Beim OEffenen der Datei ist ein Fehler Nr.', &
+!                 ierr,' aufgetreten'
+!end if
+onset = 136
 WRITE(*,*) "OCH onset", onset
-WRITE(input_filename,"(A24)") "irt_objects_input_00.srv"
-WRITE(input_filename_v(1),"(A23)"),"irt_objects_input_u.srv"
-WRITE(input_filename_v(2),"(A23)"),"irt_objects_input_v.srv"
-WRITE(input_fn_tracks,"(A19)"),    "irt_tracks_mask.srv"
+WRITE(input_filename,"(A24)") "input/irt_objects_input_00.srv"
+WRITE(input_filename_v(1),"(A29)"),"input/irt_objects_input_u.srv"
+WRITE(input_filename_v(2),"(A29)"),"input/irt_objects_input_v.srv"
+WRITE(input_fn_tracks,"(A25)"),    "input/irt_tracks_mask.srv"
 
 ! defining the output filenames
-output_filename    = "irt_objects_output.txt"
-mask_filename      = "irt_objects_mask.srv"
+!output_filename    = "irt_objects_output.txt"
+!mask_filename      = "irt_objects_mask.srv"
 mask_tracer        = "irt_objects_tracer.srv"
-coarsevel_filename = "irt_advection_field.srv"
+!coarsevel_filename = "irt_advection_field.srv"
 
 ! open the input filenames
-OPEN(1,FILE=trim(input_filename),FORM='unformatted', ACTION='read')
+OPEN(1,FILE='input/irt_objects_input_00.srv',FORM='unformatted', ACTION='read')
 OPEN(10,FILE=trim(input_filename_v(1)),FORM='unformatted', ACTION='read')
 OPEN(11,FILE=trim(input_filename_v(2)),FORM='unformatted', ACTION='read')
 OPEN(12,FILE=trim(input_fn_tracks),    FORM='unformatted', ACTION='read')
-OPEN(13,FILE=trim(input_filename2),FORM='formatted', ACTION='read')
+OPEN(13,FILE='input/irt_tracks_sorted.txt',FORM='formatted', ACTION='read')
 
 ! open the output filenames
-OPEN(20,FILE=trim(output_filename),FORM='formatted', ACTION='write')
-OPEN(30,FILE=trim(mask_filename),FORM='unformatted', ACTION='write')
 OPEN(36,FILE=trim(mask_tracer),FORM='unformatted', ACTION='write')
 OPEN(40,FILE='cp_history.txt',FORM='formatted', ACTION='write')
 
@@ -221,10 +222,11 @@ WRITE(*,*) 'finished main loop'
 ! close input/output files
 CLOSE(10)
 CLOSE(11)
-CLOSE(20)
-CLOSE(30)
 CLOSE(36)
 CLOSE(1)
+call cpu_time(finish)
+print '("Time = ",f10.3," seconds.")',finish-start
+
 
 END PROGRAM irt_cp_tracking
 
@@ -386,9 +388,10 @@ SUBROUTINE update_tracer(velx,vely,domsize_x,domsize_y, &
            traced(it,9) = 0
          ENDIF 
 
-150 format (2X,I4,      3X,I4,2X,I4    ,3X,I5, 2X,I4,2X,F10.6,2X,F10.6,2X,I4,2X,I4,2X,I1)
+150 format (           2X,I4,   3X,I4,            2X,I4    ,2X,I6, 2X,I4, &
+                       2(2X,F10.6),               2(2X,I4)    ,2X,I1)
          WRITE(40,150) timestep,INT(traced(it,5)),tracer_ts,it,INT(traced(it,8)),&
-                        ix_new,iy_new,ix_round_new,iy_round_new,INT(traced(it,9))
+                       ix_new,iy_new,ix_round_new,iy_round_new,INT(traced(it,9))
 !<<OCH             
         ENDIF
      ENDIF
@@ -453,12 +456,23 @@ SUBROUTINE neigh(domsize_x,domsize_y,track_numbers,nneighb,COMx,COMy,input_field
       jmodp = mod(j+domsize_y,domsize_y)+1
       jmodm = mod(j-2+domsize_y,domsize_y)+1
 
-      IF ((track_numbers(i,j) .ne. track_numbers(imodp,j) .or. &
-         (track_numbers(i,j) .ne. track_numbers(imodm,j)) .or. &
-         (track_numbers(i,j) .ne. track_numbers(i,jmodp)) .or. &
-         (track_numbers(i,j) .ne. track_numbers(i,jmodm)) ) ) THEN
-          nneighb(i,j) =1
-      END IF     
+      IF (track_numbers(i,j) .ne. track_numbers(imodp,j)) THEN nneighb((/i,imodp/),j) =1  
+      IF (track_numbers(i,j) .ne. track_numbers(imodm,j)) THEN nneighb((/i,imodm/),j) =1 
+      IF (track_numbers(i,j) .ne. track_numbers(i,jmodp)) THEN nneighb(i,(/j,jmodp/)) =1
+      IF (track_numbers(i,j) .ne. track_numbers(i,jmodm)) THEN nneighb(i,(/j,jmodm/)) =1 
+
+      ! diagonal neigh
+      IF (track_numbers(i,j) .ne. track_numbers(imodp,jmodp)) THEN nneighb(imodp,jmodp) =1
+      IF (track_numbers(i,j) .ne. track_numbers(imodm,jmodp)) THEN nneighb(imodm,jmodp) =1
+      IF (track_numbers(i,j) .ne. track_numbers(imodp,jmodm)) THEN nneighb(imodp,jmodp) =1
+      IF (track_numbers(i,j) .ne. track_numbers(imodm,jmodm)) THEN nneighb(imodm,jmodm) =1  
+
+!       IF ((track_numbers(i,j) .ne. track_numbers(imodp,j) .or. &
+!         (track_numbers(i,j) .ne. track_numbers(imodm,j)) .or. &
+!         (track_numbers(i,j) .ne. track_numbers(i,jmodp)) .or. &
+!         (track_numbers(i,j) .ne. track_numbers(i,jmodm)) ) ) THEN
+!          nneighb(i,j) =1
+!      END IF     
       IF (track_numbers(i,j) .gt. 0 .and. track_numbers(i,j) .lt. max_no_of_cells ) THEN
         COMx(INT(track_numbers(i,j))) = COMx(INT(track_numbers(i,j)))  + i*input_field(i,j) 
         COMy(INT(track_numbers(i,j))) = COMy(INT(track_numbers(i,j)))  + j*input_field(i,j)
