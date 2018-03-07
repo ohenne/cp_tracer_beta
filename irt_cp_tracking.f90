@@ -456,16 +456,16 @@ SUBROUTINE neigh(domsize_x,domsize_y,track_numbers,nneighb,COMx,COMy,input_field
       jmodp = mod(j+domsize_y,domsize_y)+1
       jmodm = mod(j-2+domsize_y,domsize_y)+1
 
-      IF (track_numbers(i,j) .ne. track_numbers(imodp,j)) THEN nneighb((/i,imodp/),j) =1  
-      IF (track_numbers(i,j) .ne. track_numbers(imodm,j)) THEN nneighb((/i,imodm/),j) =1 
-      IF (track_numbers(i,j) .ne. track_numbers(i,jmodp)) THEN nneighb(i,(/j,jmodp/)) =1
-      IF (track_numbers(i,j) .ne. track_numbers(i,jmodm)) THEN nneighb(i,(/j,jmodm/)) =1 
+      IF (track_numbers(i,j) .ne. track_numbers(imodp,j)) nneighb((/i,imodp/),j) =1  
+      IF (track_numbers(i,j) .ne. track_numbers(imodm,j)) nneighb((/i,imodm/),j) =1 
+      IF (track_numbers(i,j) .ne. track_numbers(i,jmodp)) nneighb(i,(/j,jmodp/)) =1
+      IF (track_numbers(i,j) .ne. track_numbers(i,jmodm)) nneighb(i,(/j,jmodm/)) =1 
 
       ! diagonal neigh
-      IF (track_numbers(i,j) .ne. track_numbers(imodp,jmodp)) THEN nneighb(imodp,jmodp) =1
-      IF (track_numbers(i,j) .ne. track_numbers(imodm,jmodp)) THEN nneighb(imodm,jmodp) =1
-      IF (track_numbers(i,j) .ne. track_numbers(imodp,jmodm)) THEN nneighb(imodp,jmodp) =1
-      IF (track_numbers(i,j) .ne. track_numbers(imodm,jmodm)) THEN nneighb(imodm,jmodm) =1  
+      IF (track_numbers(i,j) .ne. track_numbers(imodp,jmodp)) nneighb(imodp,jmodp) =1
+      IF (track_numbers(i,j) .ne. track_numbers(imodm,jmodp)) nneighb(imodm,jmodp) =1
+      IF (track_numbers(i,j) .ne. track_numbers(imodp,jmodm)) nneighb(imodp,jmodp) =1
+      IF (track_numbers(i,j) .ne. track_numbers(imodm,jmodm)) nneighb(imodm,jmodm) =1  
 
 !       IF ((track_numbers(i,j) .ne. track_numbers(imodp,j) .or. &
 !         (track_numbers(i,j) .ne. track_numbers(imodm,j)) .or. &
