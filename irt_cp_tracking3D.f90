@@ -528,7 +528,7 @@ SUBROUTINE neigh(domsize_x,domsize_y,track_numbers,nneighb,COMx,COMy,input_field
       ! diagonal neigh
       IF (track_numbers(i,j) .ne. track_numbers(imodp,jmodp)) nneighb(imodp,jmodp) =1
       IF (track_numbers(i,j) .ne. track_numbers(imodm,jmodp)) nneighb(imodm,jmodp) =1
-      IF (track_numbers(i,j) .ne. track_numbers(imodp,jmodm)) nneighb(imodp,jmodp) =1
+      IF (track_numbers(i,j) .ne. track_numbers(imodp,jmodm)) nneighb(imodp,jmodm) =1
       IF (track_numbers(i,j) .ne. track_numbers(imodm,jmodm)) nneighb(imodm,jmodm) =1  
 
       IF (track_numbers(i,j) .gt. 0 .and. track_numbers(i,j) .lt. max_no_of_cells ) THEN
