@@ -134,18 +134,6 @@ DO
  time=srv_header_input(4)
  timestep=timestep+1 ! OCH: starts with 0 ?
 WRITE(*,*) "at",timestep
-
- ! reading the velocity input files
-! DO fileid=10,11,12 !OCH add third field
-!  DO ik = 1,domsize_z
-!    READ(fileid,END=200) srv_header_input   
-!    IF (lperiodic) THEN
-!       READ(fileid) vel(:,:,1,fileid-9) 
-!    ELSE
-!       vel(:,:,fileid-9) = miss-1.
-!       READ(fileid) vel(2:domsize_x-1,2:domsize_y-1,fileid-9)
-!    ENDIF
-! ENDDO
  
  ! reading the standard input fields
  READ(1,END=200) srv_header_input
@@ -160,6 +148,7 @@ WRITE(*,*) "RAED 1 input/irt_objects_input_00.srv file"
  
  track_numbers(:,:)=0
  IF (timestep .GE. max(onset,time_step_event)) THEN
+    ! reading velocity field and passive tracer
     CALL read_in_3d(vel(:,:,:,1), 'u', 'input/test1plus4K.out.vol.u.nc',timestep,2,domsize_z)
     CALL read_in_3d(vel(:,:,:,2), 'v', 'input/test1plus4K.out.vol.v.nc',timestep,2,domsize_z)
     CALL read_in_3d(vel(:,:,:,3), 'w', 'input/test1plus4K.out.vol.w.nc',timestep,1,domsize_z)
@@ -169,7 +158,6 @@ WRITE(*,*) "RAED 1 input/irt_objects_input_00.srv file"
                    ,timestep,2,domsize_z)
     ! reading the track input files
     READ(2,END=200) srv_header_input   
-WRITE(*,*) "RAED 2input/irt_tracks_mask.srv "
 
     IF (lperiodic) THEN
        READ(2) track_numbers(:,:)
@@ -185,15 +173,9 @@ WRITE(*,*) "RAED 2input/irt_tracks_mask.srv "
  
  ! identification of edges
  CALL neigh(domsize_x,domsize_y,track_numbers,nneighb,COMx,COMy,input_field,max_no_of_cells)
-! DO iy=1, domsize_y
-!   DO ix=1, domsize_x
-!     IF (nneighb(ix,iy) .eq. 1) THEN
        CALL set_tracer(counter,domsize_x,domsize_y,nneighb, track_numbers, vel(1:2,:,:,:), & 
             COMx, COMy, timestep,traced,edge_fraction,max_no_of_cells, &
             ntracer,count_tracer,max_tracers,already_tracked,zt(1))
-!     ENDIF
-!   ENDDO
-! ENDDO
  CALL update_tracer(vel(:,:,:,1),vel(:,:,:,2),vel(:,:,:,3),domsize_x,domsize_y, domsize_z,&
       timestep,traced,resolution,dt,count_tracer,max_tracers,track_numbers,zt,zm,QC,QG)
  ! writing tracers to a grid (for time step output)

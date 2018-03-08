@@ -28,6 +28,8 @@ INTEGER              :: i,j,t,it,fileid
 INTEGER              :: counter                ! cell counter
 REAL                 :: COMx(max_no_of_cells), COMy(max_no_of_cells)
 INTEGER              :: already_tracked(max_no_of_cells) ! memory of cell counter
+
+! WINDFIELD INPUT
 INTEGER              :: srv_header_input(8)
 INTEGER              :: srv_header_coarse(8)
 INTEGER              :: headlen
@@ -42,7 +44,7 @@ REAL                 :: vel_x,vel_y
 REAL                 :: rel_x,rel_y
 INTEGER              :: nevent
 INTEGER              :: ntracer, count_tracer
-INTEGER              :: ntr,tcurr
+INTEGER              :: ntr
 INTEGER              :: onset
 
 ! file names
@@ -306,7 +308,7 @@ SUBROUTINE update_tracer(velx,vely,domsize_x,domsize_y, &
   REAL, INTENT(INOUT)       :: traced(max_tracers,9)
   REAL, INTENT(IN)          :: dt
   REAL                      :: ix_new, iy_new, vx_new, vy_new
-  REAL                      :: ix, iy
+  REAL                      :: ix, iy, vx_intp, vy_intp
   INTEGER                   :: ix_round, iy_round, tottracer, start_time, ix_org, iy_org
   INTEGER                   :: ix_round_new, iy_round_new
   REAL                      :: vx_lft, vx_rgt, vx_mn, vy_bot, vy_top, vy_mn, wgt_x, wgt_y
@@ -324,53 +326,39 @@ SUBROUTINE update_tracer(velx,vely,domsize_x,domsize_y, &
          iy=traced(it,2)
          ix_round=MOD(INT(ix)-1+domsize_x,domsize_x)+1
          iy_round=MOD(INT(iy)-1+domsize_y,domsize_y)+1
-      
-       IF (ix .GT. 0 .AND. iy .GT. 0) THEN ! bogus now?
-!         ix_round=MOD(INT(ix)-1,domsize_x)+1
-!         iy_round=MOD(INT(iy)-1,domsize_y)+1
-          ix_new = ix + dt*velx(ix_round,iy_round)/resolution
-          iy_new = iy + dt*vely(ix_round,iy_round)/resolution
+         ix_m=MOD(INT(ix)-2+domsize_x,domsize_x)+1
+         iy_m=MOD(INT(iy)-2+domsize_y,domsize_y)+1
 
-         IF (ix_new .LT. 1) THEN 
-           ix_new = ix_new + domsize_x
-         ENDIF
-!         ix_round=MOD(INT(ix)-1+domsize_x,domsize_x)+1
-!         iy_round=MOD(INT(iy)-1+domsize_y,domsize_y)+1
+         ! get weights for vertical interpolation 
+         wgt_x  = MOD(ix,1.)
+         wgt_y  = MOD(iy,1.)
 
-         IF (ix_new .GT. domsize_x) THEN 
-           ix_new = ix_new - domsize_x
-         ENDIF
+         ! bilinear interpolation
+         vx_intp = velx(ix_m,    iy_m    )*(1-wgt_x)*(1-wgt_y) &
+                 + velx(ix_m,    iy_round)*(1-wgt_x)*(  wgt_y) &
+                 + velx(ix_round,    iy_m)*(  wgt_x)*(1-wgt_y) &
+                 + velx(ix_round,iy_round)*(  wgt_x)*(  wgt_y) 
+         vy_intp = vely(ix_m,        iy_m)*(1-wgt_x)*(1-wgt_y) &
+                 + vely(ix_m,   iy_round )*(1-wgt_x)*(  wgt_y) &
+                 + vely(ix_round,    iy_m)*(  wgt_x)*(1-wgt_y) &
+                 + vely(ix_round,iy_round)*(  wgt_x)*(  wgt_y) 
 
-         IF (iy_new .LT. 1) THEN 
-           iy_new = iy_new + domsize_y
-         ENDIF
 
-         IF (iy_new .GT. domsize_y) THEN 
-           iy_new = iy_new - domsize_y
-         ENDIF
-         ! ix_new, iy_new are a decimal numbers. Need corresponding velocity.
-         vx_lft = velx(MOD(INT(ix_new  )-1+domsize_x,domsize_x)+1,MOD(INT(iy_new)-1+domsize_y,domsize_y)+1)
-         vx_rgt = velx(MOD(INT(ix_new+1)-1+domsize_x,domsize_x)+1,MOD(INT(iy_new)-1+domsize_y,domsize_y)+1)
-         vx_mn  = .5*(vx_lft+vx_rgt) ! mean of vx
+! kann vlt weg       IF (ix .GT. 0 .AND. iy .GT. 0) THEN ! bogus now?
 
-         vy_bot = vely(MOD(INT(ix_new)-1+domsize_x,domsize_x)+1,MOD(INT(iy_new  )-1+domsize_y,domsize_y)+1)
-         vy_top = vely(MOD(INT(ix_new)-1+domsize_x,domsize_x)+1,MOD(INT(iy_new+1)-1+domsize_y,domsize_y)+1)
-         vy_mn  = .5*(vy_bot+vy_top) ! mean of vy
+         ! get new location as decimal
+         ix_new = ix + dt*vx_intpi/resolution
+         iy_new = iy + dt*vely(ix_round,iy_round)/resolution
 
-         wgt_x  = MOD(ix_new,1.)
-         vx_new = (1.-wgt_x)*vx_lft + wgt_x*vx_rgt
+         ! and as gridded values
+         ix_round_new= INT(ix_new) !MOD(INT(ix_new)-1+domsize_x,domsize_x)+1
+         iy_round_new=INT(iy_new)  !MOD(INT(iy_new)-1+domsize_y,domsize_y)+1
 
-         wgt_y  = MOD(iy_new,1.)
-         vy_new = (1.-wgt_y)*vy_bot + wgt_y*vy_top
-
-         !
-         traced(it,1) = ix_new
+         traced(it,1) = ix_new   ! new position at current timestep
          traced(it,2) = iy_new
-         traced(it,3) = vx_new
-         traced(it,4) = vy_new
-         traced(it,6) = tracer_ts
-         ix_round_new=MOD(INT(ix_new)-1+domsize_x,domsize_x)+1
-         iy_round_new=MOD(INT(iy_new)-1+domsize_y,domsize_y)+1
+         traced(it,3) = vx_intp  ! old interpolated velocity at prev timestep
+         traced(it,4) = vy_intp
+         traced(it,6) = tracer_ts ! current timestep
 
          IF (traced(it,9) .eq. 0) THEN    ! if tracer is dead cant get back 
            traced(it,9) = 0  ! stays dead
@@ -388,7 +376,6 @@ SUBROUTINE update_tracer(velx,vely,domsize_x,domsize_y, &
                        ix_new,iy_new,ix_round_new,iy_round_new,INT(traced(it,9))
 !<<OCH             
         ENDIF
-     ENDIF
      it = it + 1
   ENDDO
 ! WRITE(40,*) ix_new, iy+new, timestep, counter, track_numbers(ix,iy)
