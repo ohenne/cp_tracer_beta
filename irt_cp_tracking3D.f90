@@ -185,15 +185,15 @@ WRITE(*,*) "RAED 2input/irt_tracks_mask.srv "
  
  ! identification of edges
  CALL neigh(domsize_x,domsize_y,track_numbers,nneighb,COMx,COMy,input_field,max_no_of_cells)
- DO iy=1, domsize_y
-   DO ix=1, domsize_x
-     IF (nneighb(ix,iy) .eq. 1) THEN
+! DO iy=1, domsize_y
+!   DO ix=1, domsize_x
+!     IF (nneighb(ix,iy) .eq. 1) THEN
        CALL set_tracer(counter,domsize_x,domsize_y,nneighb, track_numbers, vel(1:2,:,:,:), & 
             COMx, COMy, timestep,traced,edge_fraction,max_no_of_cells, &
             ntracer,count_tracer,max_tracers,already_tracked,zt(1))
-     ENDIF
-   ENDDO
- ENDDO
+!     ENDIF
+!   ENDDO
+! ENDDO
  CALL update_tracer(vel(:,:,:,1),vel(:,:,:,2),vel(:,:,:,3),domsize_x,domsize_y, domsize_z,&
       timestep,traced,resolution,dt,count_tracer,max_tracers,track_numbers,zt,zm,QC,QG)
  ! writing tracers to a grid (for time step output)

@@ -179,15 +179,9 @@ DO
  
  ! identification of edges
  CALL neigh(domsize_x,domsize_y,track_numbers,nneighb,COMx,COMy,input_field,max_no_of_cells)
- DO iy=1, domsize_y
-   DO ix=1, domsize_x
-     IF (nneighb(ix,iy) .eq. 1) THEN
        CALL set_tracer(counter,domsize_x,domsize_y,nneighb, track_numbers, vel, & 
             COMx, COMy, timestep,traced,edge_fraction,max_no_of_cells, &
             ntracer,count_tracer,max_tracers,already_tracked)
-     ENDIF
-   ENDDO
- ENDDO
  CALL update_tracer(vel(:,:,1),vel(:,:,2),domsize_x,domsize_y, &
       timestep,traced,resolution,dt,count_tracer,max_tracers,track_numbers)
  ! writing tracers to a grid (for time step output)
