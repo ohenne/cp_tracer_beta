@@ -133,18 +133,18 @@ DO
  date=srv_header_input(3)
  time=srv_header_input(4)
  timestep=timestep+1 ! OCH: starts with 0 ?
-WRITE(*,*) "at",timestep
+ WRITE(*,*) "at",timestep
  
  ! reading the standard input fields
  READ(1,END=200) srv_header_input
-WRITE(*,*) "RAED 1 input/irt_objects_input_00.srv header"
+ WRITE(*,*) "RAED 1 input/irt_objects_input_00.srv header"
  IF (lperiodic) THEN
    READ(1) input_field(:,:)
  ELSE
    input_field(:,:) = miss-1.
    READ(1) input_field(2:domsize_x-1,2:domsize_y-1)
  ENDIF
-WRITE(*,*) "RAED 1 input/irt_objects_input_00.srv file"
+ WRITE(*,*) "RAED 1 input/irt_objects_input_00.srv file"
  
  track_numbers(:,:)=0
  IF (timestep .GE. max(onset,time_step_event)) THEN
@@ -178,6 +178,9 @@ WRITE(*,*) "RAED 1 input/irt_objects_input_00.srv file"
       ntracer,count_tracer,max_tracers,already_tracked,zt(1))
  CALL update_tracer(vel(:,:,:,1),vel(:,:,:,2),vel(:,:,:,3),domsize_x,domsize_y, domsize_z,&
       timestep,traced,resolution,dt,count_tracer,max_tracers,track_numbers,zt,zm,QC,QG)
+ ! find closed lines around COG by connecting tracer
+ CALL find_outlines(timestep,traced,COMx,COMy,already_tracked,max_no_of_cells,max_tracers,count_tracer) 
+! CALL fill_tracer()
  ! writing tracers to a grid (for time step output)
  tracerfield(:,:,:) = 0
  ntr = 1
@@ -431,6 +434,8 @@ SUBROUTINE update_tracer(velx,vely,velz,domsize_x,domsize_y,domsize_z, &
           !ELSE
           !  traced(it,10) = 0
           !ENDIF 
+! call outline routine 
+! make separate out put routine: 
           LWC = QC(iz_new,ix_round_new,iy_round_new) *1000.
           GWC = QG(iz_new,ix_round_new,iy_round_new) *1000.
           150 FORMAT   (2X,I4,   3X,I4,            2X,I4    ,3X,I5, 2X,I4, &
@@ -449,6 +454,117 @@ SUBROUTINE update_tracer(velx,vely,velz,domsize_x,domsize_y,domsize_z, &
   RETURN
 END SUBROUTINE update_tracer
 
+! ++++++++++++++++++++++++++++++
+
+SUBROUTINE find_outlines(timestep,traced,COMx,COMy,already_tracked,max_no_of_cells,max_tracers, count_tracer)
+
+  INTEGER, INTENT(IN)       :: already_tracked(max_no_of_cells)
+  INTEGER, INTENT(IN)       :: max_tracers
+  INTEGER, INTENT(IN)       :: timestep
+  INTEGER, INTENT(IN)       :: max_no_of_cells
+  INTEGER, INTENT(INOUT)    :: count_tracer
+  REAL, INTENT(INOUT)       :: COMx(max_no_of_cells),COMy(max_no_of_cells)
+  REAL                      :: DELTAx(max_tracers), DELTAy(max_tracers)
+  REAL, INTENT(INOUT)       :: traced(max_tracers,11) 
+  REAL                      :: traced_sort(max_tracers,11)
+  INTEGER                   :: i, j, k, l, counter, start
+  REAL                      :: rad(max_tracers), dist(max_tracers), &
+                               xpos(max_tracers), ypos(max_tracers), cpID(max_tracers) 
+  REAL                      :: pi, a, dst
+
+! OCH move all this in separate routine, and save is as traced and as output
+  pi = 2.*asin(1.)
+
+  DO  i=1,300 ! loop trough all cps and calculate distance to associated tracer 
+    WHERE  (INT(traced(:,9)) .eq. i) 
+      DELTAx = traced(:,1) - COMx(i)
+      DELTAy = traced(:,2) - COMy(i)
+    END WHERE
+  END DO
+ 
+  ! calculate the angle of every tracer to COG
+  WHERE (DELTAx .gt. 0 .and. DELTAy .gt. 0)  ! 1st quadrant
+     rad = tan(DELTAy/DELTAx)
+  ELSE WHERE (DELTAx .gt. 0 .and. DELTAy .lt. 0) ! 2nd
+     rad = tan(DELTAy/DELTAx) + pi
+  ELSE WHERE (DELTAx .lt. 0 .and. DELTAy .lt. 0) ! 3rd
+     rad = tan(DELTAy/DELTAx) + pi
+  ELSE WHERE (DELTAx .gt. 0 .and. DELTAy .gt. 0) ! 4th
+     rad = tan(DELTAy/DELTAx) +2.* pi
+  ELSE WHERE (DELTAx .gt. 0 .and. DELTAy .eq. 0)
+     rad = pi/2.
+  ELSE WHERE (DELTAx .lt. 0 .and. DELTAy .eq. 0)
+     rad = (3./2.) * pi
+  ELSE WHERE (DELTAx .eq. 0 .and. DELTAy .gt. 0)
+     rad = 0.
+  ELSE WHERE (DELTAx .eq. 0 .and. DELTAy .lt. 0)
+     rad =  pi
+  ENDWHERE
+  ! and the distance do the COG
+  dist = sqrt(DELTAx**2+DELTAy**2)
+
+ ! sort by angle for every cpID
+  ! initialize
+  i = 1 ! rain cell resp cp ID
+  start =2
+  DO WHILE (already_tracked(i) .gt. 0) ! loop trough all cps with tracer
+    do j=start,start+already_tracked(i) !   count_tracer!  already_tracked(i)
+      a=rad(j)  !save value at j (eg 2)
+      do k=j-1,1,-1 ! go backwarts from value below current
+        ! if  val before current value is smaller than actual value
+        if (rad(k)<=a) goto 10
+        ! set this value at the current position 
+        rad(k+1)=rad(k)
+        dist(k+1)=dist(k)
+        cpID(k+1)=traced(k,9)
+        xpos(k+1)=traced(k,1)
+        ypos(k+1)=traced(k,2)
+        traced_sorted(k+1,1) = traced(k,1)
+        traced_sorted(k+1,2) = traced(k,2)
+        traced_sorted(k+1,4) = dist(k)
+        traced_sorted(k+1,5) = rad(k)
+        traced_sorted(k+1,9) = traced(k,9)
+
+        ! DELTA X abspeichern
+      end do
+      k=0
+      10 rad(k+1)=a
+         dist(k+1)=b
+    end do
+    start = already_tracked(i)+2
+    i = i +1
+  end do 
+  
+ ! OCH: first smooth the distance to cog before checking the distance 
+!   loop durcj cps
+!   WHERE(cp = cp)
+!     ratio = rad/mean(rad)  !wird dann mean nur ueber rad where genommen?
+!   ENDWHERE
+!   xpos = xpos + deltax  mal ratio
+!   y pos = y pos +deltay mal ratio
+  counter = 1
+  do l =2,count_tracer
+    if (count_tracer+counter .lt. max_tracers) THEN
+     if (cpID(l)  .eq. cpID(l-1)) THEN! only if tracer belong to same CP
+       dst =  sqrt((xpos(l)- xpos(l-1))**2 + (ypos(l)- ypos(l-1))**2)
+       if (dst .gt. 4.)  then! neighbouring tracers have a distance larger than 4gp 
+         ! set new tracer
+         traced(count_tracer+counter,1) = MOD(xpos(l-1) + (xpos(l)- xpos(l-1))+320.-1.,320.)+1.
+         traced(count_tracer+counter,2) = MOD(ypos(l-1) + (ypos(l)- ypos(l-1))+320.-1.,320.)+1.
+         traced(count_tracer+counter,3) = 50.
+         traced(count_tracer+counter,6) = timestep
+         traced(count_tracer+counter,7) = 0
+!         traced(count_tracer+counter,8) = count_tracer+counter           
+         traced(count_tracer+counter,9) = cpID(l)
+         traced(count_tracer+counter,10) = 1. 
+         traced(count_tracer+counter,11) = 1. 
+         counter = counter+1
+       end if
+     end if
+    end if
+  end do
+  count_tracer = count_tracer+counter
+END SUBROUTINE find_outlines
 
 ! ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -499,7 +615,7 @@ SUBROUTINE neigh(domsize_x,domsize_y,track_numbers,nneighb,COMx,COMy,input_field
   nneighb = 0
   DO i =2,domsize_x-1
     DO j =2,domsize_y-1
-     IF (already_tracked(track_numbers(i,j)) .lt. 30 ) 
+     IF (already_tracked(INT(track_numbers(i,j))) .lt. 30 ) THEN 
      ! already_tracked counts how many tracer exist for a single CP, 
      ! CPID is gien in track_numbers(i,j)
      ! if already 30 tracers are set, no more new tracers will be started
