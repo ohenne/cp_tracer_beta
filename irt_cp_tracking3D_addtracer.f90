@@ -82,9 +82,9 @@ OPEN(40,FILE='cp_3Dhistory.txt',FORM='formatted', ACTION='write')
 
 ! text output file, write header
 151 FORMAT  (2X,A4,   1X,A6,   3X,A3, 2X,A7,   1X,A4,  2(8X, A4),    7X,A6,   3(2X,A4),2X, &
-  A1, 3(X,A10))
+  A1, 5(X,A10))
 WRITE(40,151) 'time','tstart','age','traceID','cpID', 'Xpos','Ypos','Height','Xpos','Ypos','Zpos', &
-  'F', ' LWC/gkg-1',' GWC/gkg-1', '    w/ms-1'
+  'F', ' LWC/gkg-1',' GWC/gkg-1', '    w/ms-1', 'rad' , 'dist'
 ! get the levels
 DO 
   READ(4,*,END=300) zi, zm(zi)
@@ -179,8 +179,11 @@ DO
  CALL update_tracer(vel(:,:,:,1),vel(:,:,:,2),vel(:,:,:,3),domsize_x,domsize_y, domsize_z,&
       timestep,traced,resolution,dt,count_tracer,max_tracers,track_numbers,zt,zm,QC,QG)
  ! find closed lines around COG by connecting tracer
- CALL find_outlines(timestep,traced,COMx,COMy,already_tracked,max_no_of_cells,max_tracers,count_tracer) 
-! CALL fill_tracer()
+! CALL find_outlines(timestep,traced,COMx,COMy,already_tracked,max_no_of_cells,max_tracers,count_tracer) 
+! OCH: might be better to separate some routines: 
+ CALL outlines(traced,max_tracers,COMx,COMy,already_tracked,max_no_of_cells)
+ CALL write_output(traced,max_tracers,count_tracer,QC,QG,zt,domsize_z,domsize_x,domsize_y,timestep) 
+ CALL fill_tracer(timestep,traced,COMx,COMy,already_tracked,max_no_of_cells,max_tracers,count_tracer)
  ! writing tracers to a grid (for time step output)
  tracerfield(:,:,:) = 0
  ntr = 1
@@ -299,11 +302,12 @@ SUBROUTINE set_tracer(counter,domsize_x,domsize_y,nneighb,track_numbers,vel,cent
                  traced(count_tracer,2) = iy
                  traced(count_tracer,3) = zt    ! in meter not gridpoints, start
                                                 ! at full level 
+!now used for rad and dist
 !nicht genutzt    traced(count_tracer,4) = vx 
 !                 traced(count_tracer,5) = vy 
                  traced(count_tracer,6) = timestep     ! timestep when tracking begins
                  traced(count_tracer,7) = 0   ! tracer age ???timestep     ! 
-                 traced(count_tracer,8) = counter              ! ! OCH ist das die
+!nichtgenutzt                 traced(count_tracer,8) = counter              ! ! OCH ist das die
 !track ID Tracer ID
 !nein? was fuer ein counter ist das?
                  traced(count_tracer,9) = track_numbers(ix,iy) ! TRACK ID 
@@ -434,16 +438,17 @@ SUBROUTINE update_tracer(velx,vely,velz,domsize_x,domsize_y,domsize_z, &
           !ELSE
           !  traced(it,10) = 0
           !ENDIF 
+!          CALL outlines(traced,max_tracers,it,COMx,COMy)
 ! call outline routine 
 ! make separate out put routine: 
-          LWC = QC(iz_new,ix_round_new,iy_round_new) *1000.
-          GWC = QG(iz_new,ix_round_new,iy_round_new) *1000.
-          150 FORMAT   (2X,I4,   3X,I4,            2X,I4    ,3X,I5, 2X,I4, &
-                        2(2X,F10.5),  2X,F11.5,3(2X,I4),                        2X,I1,&
-                        3(2X,F10.6))
-          WRITE(40,150) timestep,INT(traced(it,6)),tracer_ts,it    ,INT(traced(it,9)),&
-                        ix_new,iy_new,hh_new ,ix_round_new,iy_round_new,iz_new, INT(traced(it,10)), &
-                         LWC, GWC, vz_intp 
+!          LWC = QC(iz_new,ix_round_new,iy_round_new) *1000.
+!          GWC = QG(iz_new,ix_round_new,iy_round_new) *1000.
+!          150 FORMAT   (2X,I4,   3X,I4,            2X,I4    ,3X,I5, 2X,I4, &
+!                        2(2X,F10.5),  2X,F11.5,3(2X,I4),                        2X,I1,&
+!                        3(2X,F10.6))
+!          WRITE(40,150) timestep,INT(traced(it,6)),tracer_ts,it    ,INT(traced(it,9)),&
+!                        ix_new,iy_new,hh_new ,ix_round_new,iy_round_new,iz_new, INT(traced(it,10)), &
+!                         LWC, GWC, vz_intp 
         ELSE ! set tracer inactive if it is to high 
           traced(it,11) = 0.
         ENDIF ! end if: check if tracer is too high
@@ -454,9 +459,125 @@ SUBROUTINE update_tracer(velx,vely,velz,domsize_x,domsize_y,domsize_z, &
   RETURN
 END SUBROUTINE update_tracer
 
+SUBROUTINE write_output(traced,max_tracers,count_tracer,QC,QG,zt,domsize_z,domsize_x,domsize_y,timestep)
+  INTEGER, INTENT(IN)       :: count_tracer,max_tracers, timestep, &
+                               domsize_z, &
+                               domsize_x,domsize_y
+  INTEGER                   :: it, ix_round_new, iy_round_new, iz_dummy(1), iz_new 
+  REAL, INTENT(INOUT)       :: traced(max_tracers,11)
+  REAL, INTENT(IN)          :: QC(domsize_z,domsize_x,domsize_y), &
+                               QG(domsize_z,domsize_x,domsize_y)
+  REAL                      :: LWC, GWC 
+  REAL, INTENT(IN)          :: zt(domsize_z)
+  it=1
+  ! updating previous tracers
+  DO WHILE (it .LT. count_tracer)
+    IF (traced(it,11)  .eq. 1.) THEN  !trace only if tracer is active
+        IF (traced(it,3) .lt. 10000.) THEN
+          ! and as gridded values
+          ix_round_new= INT(traced(it,1)) !MOD(INT(ix_new)-1+domsize_x,domsize_x)+1
+          iy_round_new=INT(traced(it,2))  !MOD(INT(iy_new)-1+domsize_y,domsize_y)+1
+          iz_dummy=MINLOC(ABS(zt(:)-traced(it,3)))
+          iz_new = iz_dummy(1)
+
+          LWC = QC(iz_new,ix_round_new,iy_round_new) *1000.
+          GWC = QG(iz_new,ix_round_new,iy_round_new) *1000.
+          150 FORMAT   (2X,I4,   3X,I4,              3X,I5, 2X,I4, &
+                        2(2X,F10.5),  2X,F11.5,3(2X,I4),2X,I1,&
+                        5(2X,F10.6))
+          WRITE(40,150) timestep,INT(traced(it,6)),it,INT(traced(it,9)),&
+                        traced(it,1),traced(it,2),traced(it,3),ix_round_new,iy_round_new,iz_new, INT(traced(it,10)), &
+                         LWC, GWC, vz_intp, traced(it,4),traced(it,5)
+
+
+        END IF
+    END IF
+    it = it+1
+  END DO
+
+END SUBROUTINE write_output
+
+
+!SUBROUTINE outlines(traced,max_tracers,it)
+!  INTEGER, INTENT(IN)       :: max_tracers,it
+!  REAL, INTENT(INOUT)       :: traced(max_tracers,11)
+!  REAL                      :: DELTAx, DELTAy, pi
+!
+!   pi = 2.*asin(1.)
+!
+!
+!
+!  DELTAx = traced(it,1) - COMx(INT(traced(it,9)))
+!  DELTAy = traced(it,2) - COMy(INT(traced(it,9)))
+!
+!  ! calculate the angle of every tracer to COG
+!  IF (DELTAx .gt. 0 .and. DELTAy .gt. 0) THEN ! 1st quadrant
+!     traced(it,4) = tan(DELTAy/DELTAx)
+!  ELSE IF (DELTAx .gt. 0 .and. DELTAy .lt. 0) THEN ! 2nd
+!     traced(it,4) = tan(DELTAy/DELTAx) + pi
+!  ELSE IF (DELTAx .lt. 0 .and. DELTAy .lt. 0) THEN ! 3rd
+!     traced(it,4) = tan(DELTAy/DELTAx) + pi
+!  ELSE IF (DELTAx .gt. 0 .and. DELTAy .gt. 0) THEN ! 4th
+!     traced(it,4) = tan(DELTAy/DELTAx) +2.* pi
+!  ELSE IF (DELTAx .gt. 0 .and. DELTAy .eq. 0) THEN
+!     traced(it,4) = pi/2.
+!  ELSE IF (DELTAx .lt. 0 .and. DELTAy .eq. 0) THEN
+!     traced(it,4) = (3./2.) * pi
+!  ELSE IF (DELTAx .eq. 0 .and. DELTAy .gt. 0) THEN
+!     traced(it,4) = 0.
+!  ELSE IF (DELTAx .eq. 0 .and. DELTAy .lt. 0) THEN
+!     traced(it,4) =  pi
+!  ENDIF
+!  ! and the distance do the COG
+!  traced(it,5) = sqrt(DELTAx**2+DELTAy**2)
+!
+!END SUBROUTINE outlines
+
+SUBROUTINE outlines(traced,max_tracers,COMx,COMy,already_tracked,max_no_of_cells)
+  INTEGER, INTENT(IN)       :: max_tracers,max_no_of_cells
+  REAL, INTENT(INOUT)       :: traced(max_tracers,11)
+  REAL                      :: DELTAx(max_tracers), DELTAy(max_tracers), pi
+  INTEGER                   :: i
+  INTEGER, INTENT(INOUT)    :: already_tracked(max_no_of_cells)
+  REAL, INTENT(INOUT)    :: COMx(max_no_of_cells),COMy(max_no_of_cells)
+
+   pi = 2.*asin(1.)
+
+  i = 1
+  DO WHILE (already_tracked(i) .gt. 0) 
+    WHERE (i .eq. INT(traced(:,9)))
+      DELTAx = traced(:,1) - COMx(i)
+      DELTAy = traced(:,2) - COMy(i)
+    END WHERE
+     ! calculate the angle of every tracer to COG
+    WHERE (DELTAx .gt. 0 .and. DELTAy .gt. 0)  ! 1st quadrant
+       traced(:,4) = tan(DELTAy/DELTAx)
+    ELSE WHERE (DELTAx .gt. 0 .and. DELTAy .lt. 0)  ! 2nd
+       traced(:,4) = tan(DELTAy/DELTAx) + pi
+    ELSE WHERE (DELTAx .lt. 0 .and. DELTAy .lt. 0)  ! 3rd
+       traced(:,4) = tan(DELTAy/DELTAx) + pi
+    ELSE WHERE (DELTAx .gt. 0 .and. DELTAy .gt. 0)  ! 4th
+       traced(:,4) = tan(DELTAy/DELTAx) +2.* pi
+    ELSE WHERE (DELTAx .gt. 0 .and. DELTAy .eq. 0) 
+       traced(:,4) = pi/2.
+    ELSE WHERE (DELTAx .lt. 0 .and. DELTAy .eq. 0) 
+       traced(:,4) = (3./2.) * pi
+    ELSE WHERE (DELTAx .eq. 0 .and. DELTAy .gt. 0) 
+       traced(:,4) = 0.
+    ELSE WHERE (DELTAx .eq. 0 .and. DELTAy .lt. 0) 
+       traced(:,4) =  pi
+    ENDWHERE
+  END DO 
+  ! and the distance do the COG
+  traced(:,5) = sqrt(DELTAx**2+DELTAy**2)
+
+END SUBROUTINE outlines
+
 ! ++++++++++++++++++++++++++++++
 
-SUBROUTINE find_outlines(timestep,traced,COMx,COMy,already_tracked,max_no_of_cells,max_tracers, count_tracer)
+SUBROUTINE fill_tracer(timestep,traced,COMx,COMy,already_tracked,max_no_of_cells,max_tracers, count_tracer)
+!SUBROUTINE add_tracer(timestep,traced,COMx,COMy,already_tracked,max_no_of_cells,max_tracers,count_tracer)
+
 
   INTEGER, INTENT(IN)       :: already_tracked(max_no_of_cells)
   INTEGER, INTENT(IN)       :: max_tracers
@@ -472,37 +593,8 @@ SUBROUTINE find_outlines(timestep,traced,COMx,COMy,already_tracked,max_no_of_cel
                                xpos(max_tracers), ypos(max_tracers), cpID(max_tracers) 
   REAL                      :: pi, a, dst
 
-! OCH move all this in separate routine, and save is as traced and as output
-  pi = 2.*asin(1.)
-
-  DO  i=1,300 ! loop trough all cps and calculate distance to associated tracer 
-    WHERE  (INT(traced(:,9)) .eq. i) 
-      DELTAx = traced(:,1) - COMx(i)
-      DELTAy = traced(:,2) - COMy(i)
-    END WHERE
-  END DO
- 
-  ! calculate the angle of every tracer to COG
-  WHERE (DELTAx .gt. 0 .and. DELTAy .gt. 0)  ! 1st quadrant
-     rad = tan(DELTAy/DELTAx)
-  ELSE WHERE (DELTAx .gt. 0 .and. DELTAy .lt. 0) ! 2nd
-     rad = tan(DELTAy/DELTAx) + pi
-  ELSE WHERE (DELTAx .lt. 0 .and. DELTAy .lt. 0) ! 3rd
-     rad = tan(DELTAy/DELTAx) + pi
-  ELSE WHERE (DELTAx .gt. 0 .and. DELTAy .gt. 0) ! 4th
-     rad = tan(DELTAy/DELTAx) +2.* pi
-  ELSE WHERE (DELTAx .gt. 0 .and. DELTAy .eq. 0)
-     rad = pi/2.
-  ELSE WHERE (DELTAx .lt. 0 .and. DELTAy .eq. 0)
-     rad = (3./2.) * pi
-  ELSE WHERE (DELTAx .eq. 0 .and. DELTAy .gt. 0)
-     rad = 0.
-  ELSE WHERE (DELTAx .eq. 0 .and. DELTAy .lt. 0)
-     rad =  pi
-  ENDWHERE
-  ! and the distance do the COG
-  dist = sqrt(DELTAx**2+DELTAy**2)
-
+   rad = traced(1:count_tracer,4)
+   dist = traced(1:count_tracer,5)
  ! sort by angle for every cpID
   ! initialize
   i = 1 ! rain cell resp cp ID
@@ -519,11 +611,11 @@ SUBROUTINE find_outlines(timestep,traced,COMx,COMy,already_tracked,max_no_of_cel
         cpID(k+1)=traced(k,9)
         xpos(k+1)=traced(k,1)
         ypos(k+1)=traced(k,2)
-        traced_sorted(k+1,1) = traced(k,1)
-        traced_sorted(k+1,2) = traced(k,2)
-        traced_sorted(k+1,4) = dist(k)
-        traced_sorted(k+1,5) = rad(k)
-        traced_sorted(k+1,9) = traced(k,9)
+        traced_sort(k+1,1) = traced(k,1)
+        traced_sort(k+1,2) = traced(k,2)
+        traced_sort(k+1,4) = dist(k)
+        traced_sort(k+1,5) = rad(k)
+        traced_sort(k+1,9) = traced(k,9)
 
         ! DELTA X abspeichern
       end do
@@ -564,7 +656,7 @@ SUBROUTINE find_outlines(timestep,traced,COMx,COMy,already_tracked,max_no_of_cel
     end if
   end do
   count_tracer = count_tracer+counter
-END SUBROUTINE find_outlines
+END SUBROUTINE fill_tracer !find_outlines
 
 ! ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
